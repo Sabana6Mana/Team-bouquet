@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>네이버 지도 격리 테스트</title>
+<style>
+  body { margin: 0; font-family: system-ui, 'Malgun Gothic', sans-serif; background: #fff; color: #111; }
+  header { padding: 12px 16px; border-bottom: 1px solid #ddd; }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input { padding: 8px 10px; border: 1px solid #bbb; border-radius: 6px; font: inherit; min-width: 220px; }
+  button { padding: 8px 14px; border: 0; border-radius: 6px; background: #03c75a; color: #fff; font-weight: 700; cursor: pointer; }
+  /* 지도 컨테이너에 명시적 크기를 준다. 크기가 0이면 지도는 절대 제대로 그려지지 않는다. */
+  #map { width: 100%; height: 60vh; border-bottom: 1px solid #ddd; }
+  #log { padding: 12px 16px; font-family: ui-monospace, 'Cascadia Mono', monospace; font-size: 12px; white-space: pre-wrap; line-height: 1.6; }
+  .ok { color: #0a7a34; font-weight: 700; }
+  .bad { color: #c00; font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>네이버 지도 격리 테스트 (앱 코드 없음)</h1>
+  <div class="row">
+    <input id="key" placeholder="Client ID 입력" />
+    <label><input type="radio" name="p" value="ncpKeyId" checked /> ncpKeyId</label>
+    <label><input type="radio" name="p" value="ncpClientId" /> ncpClientId</label>
+    <button id="go">지도 불러오기</button>
+  </div>
+</header>
+
+<div id="map"></div>
+<div id="log">키를 넣고 [지도 불러오기]를 누르세요.</div>
+
+<script>
+  var logEl = document.getElementById('log')
+  var lines = []
+  function log(msg, cls) {
+    lines.push(cls ? '<span class="' + cls + '">' + msg + '</span>' : msg)
+    logEl.innerHTML = lines.join('\n')
+  }
+
+  // ?key=... 로 미리 채울 수 있다.
+  var params = new URLSearchParams(location.search)
+  document.getElementById('key').value = params.get('key') || ''
+
+  // 네이버는 인증 실패를 이 전역 콜백으로 알린다.
+  window.navermap_authFailure = function () {
+    log('✗ navermap_authFailure 호출됨 → 인증 거부', 'bad')
+    log('  등록된 Web 서비스 URL과 현재 출처(' + location.origin + ')가 일치하는지 확인하세요.')
+  }
+
+  document.getElementById('go').onclick = function () {
+    var key = document.getElementById('key').value.trim()
+    if (!key) { alert('Client ID를 입력하세요'); return }
+    var param = document.querySelector('input[name=p]:checked').value
+
+    lines = []
+    log('출처(origin): ' + location.origin)
+    log('파라미터: ' + param)
+    log('키: ' + key)
+    log('스크립트 로드 중...')
+
+    var src = 'https://oapi.map.naver.com/openapi/v3/maps.js?' + param + '=' + encodeURIComponent(key)
+    var s = document.createElement('script')
+    s.src = src
+    s.onload = function () {
+      log('✓ maps.js 로드 완료', 'ok')
+      if (!window.naver || !window.naver.maps) {
+        log('✗ window.naver.maps 없음', 'bad')
+        return
+      }
+      var el = document.getElementById('map')
+      log('컨테이너 크기: ' + el.clientWidth + '×' + el.clientHeight)
+
+      var map = new naver.maps.Map(el, {
+        center: new naver.maps.LatLng(37.4979, 127.0276),
+        zoom: 15,
+      })
+      window._map = map
+      log('Map 객체 생성됨')
+
+      // 마커도 하나 찍어 좌표계가 맞는지 본다.
+      new naver.maps.Marker({
+        position: new naver.maps.LatLng(37.4979, 127.0276),
+        map: map,
+      })
+
+      var n = 0
+      var timer = setInterval(function () {
+        n++
+        var imgs = el.querySelectorAll('img')
+        var loaded = 0
+        for (var i = 0; i < imgs.length; i++) if (imgs[i].naturalWidth > 0) loaded++
+        var size = map.getSize ? map.getSize() : null
+        var first = imgs[0] ? imgs[0].getBoundingClientRect() : null
+        var box = el.getBoundingClientRect()
+
+        if (n === 3 || n === 8) {
+          log('--- ' + n + '초 경과 ---')
+          log('타일 img: ' + imgs.length + '개 (로드 완료 ' + loaded + '개)')
+          log('map.getSize(): ' + (size ? size.width + '×' + size.height : '없음'))
+          log('컨테이너 위치: ' + Math.round(box.x) + ',' + Math.round(box.y) +
+              ' ' + Math.round(box.width) + '×' + Math.round(box.height))
+          log('첫 타일 위치: ' + (first ? Math.round(first.x) + ',' + Math.round(first.y) +
+              ' ' + Math.round(first.width) + '×' + Math.round(first.height) : '없음'))
+
+          if (loaded > 0 && first && box) {
+            var inside = first.x < box.right && first.x + first.width > box.left &&
+                         first.y < box.bottom && first.y + first.height > box.top
+            log(inside ? '✓ 타일이 컨테이너 안에 그려짐 — 정상' : '✗ 타일이 컨테이너 밖에 있음 — 좌표계 어긋남', inside ? 'ok' : 'bad')
+          } else if (loaded === 0) {
+            log('✗ 타일이 하나도 로드되지 않음 — 인증/네트워크 문제', 'bad')
+          }
+        }
+        if (n >= 8) clearInterval(timer)
+      }, 1000)
+    }
+    s.onerror = function () { log('✗ maps.js 로드 실패 (네트워크/차단)', 'bad') }
+    document.head.appendChild(s)
+  }
+</script>
+</body>
+</html>
