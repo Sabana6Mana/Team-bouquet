@@ -29,7 +29,8 @@ export default function ResultScreen() {
 
   if (!match) return null
 
-  const venue = VENUES.find((v) => v.id === match.venueId)!
+  const venue = VENUES.find((v) => v.id === match.venueId)
+  const venueName = venue?.name ?? match.venueName ?? '매칭 장소'
   const meta = SPORTS[match.sport]
   const myTeam: 'a' | 'b' = match.teams.a.includes(me.id) ? 'a' : 'b'
   const reported = !!match.result
@@ -68,7 +69,7 @@ export default function ResultScreen() {
             <div className="stack" style={{ gap: 7 }}>
               <h1 className="h1">어느 팀이<br />이겼나요?</h1>
               <p className="body">
-                {venue.name} · {meta.label} {MODE_LABEL[match.mode]}
+                {venueName} · {meta.label} {MODE_LABEL[match.mode]}
                 <br />
                 <strong style={{ color: 'var(--cyan)' }}>참여자 전원이 같은 팀을 선택해야 결과가 확정됩니다.</strong>
               </p>

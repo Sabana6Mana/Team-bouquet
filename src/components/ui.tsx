@@ -1,5 +1,15 @@
 import type { ReactNode } from 'react'
 import { honorOf, tierOf } from '../lib/game'
+import type { MatchPhase } from '../types'
+
+/** 진행 중인 매칭의 현재 단계로 안전하게 복귀할 화면. */
+export function activeMatchPath(phase: MatchPhase): string {
+  if (phase === 'queue') return '/queue'
+  if (phase === 'teaming') return '/teams'
+  if (phase === 'payment') return '/payment'
+  if (phase === 'reporting' || phase === 'done') return '/result'
+  return '/room'
+}
 
 export function TierBadge({ elo, size = 'md' }: { elo: number; size?: 'sm' | 'md' }) {
   const t = tierOf(elo)

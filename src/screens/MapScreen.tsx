@@ -7,6 +7,7 @@ import { useApp } from '../store/useApp'
 import { HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
 import { QUICK_RADIUS_M, SPORTS, tierOf } from '../lib/game'
 import type { SportId } from '../types'
+import { activeMatchPath } from '../components/ui'
 
 export default function MapScreen() {
   const me = useApp((s) => s.me)
@@ -177,16 +178,7 @@ export default function MapScreen() {
             <button
               className="btn gold"
               style={{ width: '100%' }}
-              onClick={() =>
-                nav(
-                  match.phase === 'queue' ? '/queue'
-                  : match.phase === 'scheduling' ? '/room'
-                  : match.phase === 'teaming' ? '/teams'
-                  : match.phase === 'payment' ? '/payment'
-                  : match.phase === 'reporting' ? '/result'
-                  : '/room',
-                )
-              }
+              onClick={() => nav(activeMatchPath(match.phase))}
             >
               ⚡ 진행 중인 매칭으로 돌아가기
             </button>

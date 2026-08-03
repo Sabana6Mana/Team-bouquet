@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { VENUES } from '../data/seed'
 import { MODE_LABEL, SPORTS, slotLabel, recommendTeams, teamAvg, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
+import { useBackend } from '../context/BackendProvider'
 
 const SIDE = {
   a: { key: 'a' as const, label: 'TEAM BLUE', emoji: '🔵', color: '#2F6FD0' },
@@ -15,7 +16,13 @@ export default function TeamScreen() {
   const me = useApp((s) => s.me)
   const setTeams = useApp((s) => s.setTeams)
   const setTeamReady = useApp((s) => s.setTeamReady)
+  const cancelMatch = useApp((s) => s.cancelMatch)
+  const backend = useBackend()
   const nav = useNavigate()
+  const [draftTeams, setDraftTeams] = useState<{ a: string[]; b: string[] }>(() => ({
+    a: match?.teams.a ?? [],
+    b: match?.teams.b ?? [],
+  }))
 
   useEffect(() => {
     if (!match) { nav('/', { replace: true }); return }
@@ -23,12 +30,20 @@ export default function TeamScreen() {
     if (match.phase === 'reporting') nav('/result', { replace: true })
   }, [match?.phase, match])
 
+  useEffect(() => {
+    if (!match) return
+    setDraftTeams({ a: match.teams.a, b: match.teams.b })
+  }, [match?.id, match?.teams.a.join('|'), match?.teams.b.join('|')])
+
   if (!match) return null
 
-  const venue = VENUES.find((v) => v.id === match.venueId)!
+  const venue = VENUES.find((v) => v.id === match.venueId)
+  const venueName = venue?.name ?? match.venueName ?? '매칭 장소'
   const meta = SPORTS[match.sport]
   const half = match.capacity / 2
-  const { a, b } = match.teams
+  const canEditTeams = !backend.enabled || match.hostId === me.id
+  const shownTeams = backend.enabled ? draftTeams : match.teams
+  const { a, b } = shownTeams
 
   const avgA = teamAvg(match.players, a, match.sport)
   const avgB = teamAvg(match.players, b, match.sport)
@@ -36,28 +51,49 @@ export default function TeamScreen() {
   const balanced = a.length === half && b.length === half
   const readyCount = match.players.filter((p) => match.teamReady[p.id]).length
   const iAmReady = !!match.teamReady[me.id]
+  const hasUnsavedTeams = backend.enabled && (
+    a.join('|') !== match.teams.a.join('|') || b.join('|') !== match.teams.b.join('|')
+  )
   /** 격차가 작을수록 100에 가까운 균형 점수 */
   const balancePct = Math.max(0, Math.min(100, 100 - (gap / 300) * 100))
 
-  const playerOf = (id: string) => match.players.find((p) => p.id === id)!
+  const playerOf = (id: string) => match.players.find((p) => p.id === id)
 
   const move = (id: string, to: 'a' | 'b') => {
+    if (!canEditTeams) return
     const from = to === 'a' ? 'b' : 'a'
-    if (!match.teams[from].includes(id)) return
-    const nextFrom = match.teams[from].filter((x) => x !== id)
-    const nextTo = [...match.teams[to], id]
-    if (to === 'a') setTeams(nextTo, nextFrom)
-    else setTeams(nextFrom, nextTo)
+    if (!shownTeams[from].includes(id)) return
+    const nextFrom = shownTeams[from].filter((x) => x !== id)
+    const nextTo = [...shownTeams[to], id]
+    const next = to === 'a'
+      ? { a: nextTo, b: nextFrom }
+      : { a: nextFrom, b: nextTo }
+    if (backend.enabled) setDraftTeams(next)
+    else setTeams(next.a, next.b)
   }
 
   const applyRecommended = () => {
+    if (!canEditTeams) return
     const r = recommendTeams(match.players, match.sport)
-    setTeams(r.a, r.b)
+    if (backend.enabled) setDraftTeams(r)
+    else setTeams(r.a, r.b)
+  }
+
+  const saveTeams = () => {
+    if (!canEditTeams || !balanced || !hasUnsavedTeams) return
+    // 편집 중의 불균형 상태는 로컬에만 두고, 완성된 두 팀을 RPC 한 번으로 저장한다.
+    setTeams(a, b)
+  }
+
+  const cancelActiveMatch = () => {
+    if (!window.confirm('이 매칭을 취소할까요? 다른 참여자에게도 취소 상태가 반영됩니다.')) return
+    cancelMatch()
+    nav('/', { replace: true })
   }
 
   const renderTeam = (side: 'a' | 'b') => {
     const s = SIDE[side]
-    const ids = match.teams[side]
+    const ids = shownTeams[side]
     const avg = side === 'a' ? avgA : avgB
     const other = side === 'a' ? 'b' : 'a'
     const full = ids.length >= half
@@ -79,11 +115,13 @@ export default function TeamScreen() {
         <div className="stack" style={{ gap: 7 }}>
           {ids.map((id) => {
             const p = playerOf(id)
+            if (!p) return null
             const t = tierOf(p.elo[match.sport])
             return (
               <button
                 key={id}
                 onClick={() => move(id, other)}
+                disabled={!canEditTeams}
                 className="card row"
                 style={{
                   gap: 9, padding: 9,
@@ -109,11 +147,11 @@ export default function TeamScreen() {
                 </div>
                 {match.teamReady[id] ? (
                   <span style={{ color: 'var(--green)', fontSize: 13 }}>✓</span>
-                ) : (
+                ) : canEditTeams ? (
                   <span className="small" style={{ fontSize: 14, opacity: 0.5 }}>
                     {side === 'a' ? '→' : '←'}
                   </span>
-                )}
+                ) : null}
               </button>
             )
           })}
@@ -136,7 +174,7 @@ export default function TeamScreen() {
             {avg || '-'}
           </span>
         </div>
-        {full && <span className="small" style={{ fontSize: 10 }}>선수를 눌러 반대 팀으로 이동</span>}
+        {full && canEditTeams && <span className="small" style={{ fontSize: 10 }}>선수를 눌러 반대 팀으로 이동</span>}
       </div>
     )
   }
@@ -152,7 +190,7 @@ export default function TeamScreen() {
               {meta.emoji}
             </div>
             <div className="stack grow" style={{ gap: 3 }}>
-              <strong style={{ fontSize: 14 }}>{venue.name}</strong>
+              <strong style={{ fontSize: 14 }}>{venueName}</strong>
               <span className="small">
                 {meta.label} {MODE_LABEL[match.mode]}
                 {match.confirmedSlot !== null && ` · ${slotLabel(match.confirmedSlot)}`}
@@ -202,9 +240,20 @@ export default function TeamScreen() {
               <span className="small" style={{ fontSize: 11 }}>
                 {gap <= 60 ? '균형이 좋습니다' : gap <= 150 ? '조금 기울어 있습니다' : '격차가 큽니다'}
               </span>
-              <button className="btn sm" onClick={applyRecommended}>
-                ⚖️ 추천 팀 적용
-              </button>
+              {canEditTeams ? (
+                <div className="row" style={{ gap: 6 }}>
+                  <button className="btn sm" onClick={applyRecommended}>
+                    ⚖️ 추천 팀 적용
+                  </button>
+                  {hasUnsavedTeams && (
+                    <button className="btn sm primary" disabled={!balanced} onClick={saveTeams}>
+                      팀 저장
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <span className="small" style={{ fontSize: 10.5 }}>방장만 팀을 편집할 수 있습니다.</span>
+              )}
             </div>
           </div>
 
@@ -230,7 +279,11 @@ export default function TeamScreen() {
             </div>
             <span className="small" style={{ fontSize: 11 }}>
               {!balanced
-                ? '정원이 맞지 않으면 준비할 수 없습니다. 상대들도 정원을 맞추려 팀을 옮깁니다.'
+                ? canEditTeams
+                  ? '양 팀 정원을 맞춘 뒤 팀 구성을 저장해 주세요.'
+                  : '방장이 양 팀 정원을 맞추는 중입니다.'
+                : hasUnsavedTeams
+                  ? '변경한 팀 구성을 먼저 저장해 주세요.'
                 : iAmReady
                   ? '전원이 준비를 완료하면 결제로 넘어갑니다.'
                   : '팀 구성에 동의하면 준비를 완료해 주세요.'}
@@ -238,21 +291,30 @@ export default function TeamScreen() {
           </div>
 
           <p className="small" style={{ fontSize: 11 }}>
-            선수를 눌러 원하는 팀으로 옮길 수 있습니다. 팀을 바꾸면 모두의 준비 상태가 초기화되고
-            상대들이 다시 검토합니다. ELO 격차가 작을수록 경기 결과에 따른 레이팅 변동이 커집니다.
+            {canEditTeams
+              ? '선수를 눌러 원하는 팀으로 옮긴 뒤, 양 팀 정원이 맞으면 한 번에 저장합니다. 팀을 저장하면 모두의 준비 상태가 초기화됩니다.'
+              : '방장이 팀 구성을 저장하면 내용을 확인한 뒤 준비를 완료해 주세요.'}
+            {' '}ELO 격차가 작을수록 경기 결과에 따른 레이팅 변동이 커집니다.
           </p>
         </div>
       </div>
 
-      <div style={{ padding: '12px 18px calc(16px + var(--safe-bottom))', borderTop: '1px solid var(--line)' }}>
+      <div className="stack" style={{ gap: 8, padding: '12px 18px calc(16px + var(--safe-bottom))', borderTop: '1px solid var(--line)' }}>
+        {backend.enabled && (
+          <button className="btn ghost" style={{ width: '100%', color: 'var(--red)' }} onClick={cancelActiveMatch}>
+            매칭 취소
+          </button>
+        )}
         <button
           className={`btn${iAmReady ? '' : ' primary'}`}
           style={{ width: '100%', height: 56, fontSize: 16 }}
-          disabled={!balanced}
+          disabled={!balanced || hasUnsavedTeams}
           onClick={() => setTeamReady(!iAmReady)}
         >
           {!balanced
             ? `양 팀을 ${half}명씩 맞춰주세요`
+            : hasUnsavedTeams
+              ? '변경한 팀 구성을 먼저 저장해 주세요'
             : iAmReady
               ? `준비 완료 취소 · 다른 참여자 대기 중 (${readyCount}/${match.capacity})`
               : '이 팀으로 준비 완료'}

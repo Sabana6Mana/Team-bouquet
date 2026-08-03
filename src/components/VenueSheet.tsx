@@ -7,10 +7,12 @@ import {
 } from '../lib/game'
 import { leaderboardOf, npcById, recordsOf } from '../data/seed'
 import { useApp } from '../store/useApp'
+import { activeMatchPath } from './ui'
 
 /** 지도 위에 뜨는 체육관 상세 팝업. 마커는 왼쪽, 팝업은 오른쪽. */
 export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: () => void }) {
   const coords = useApp((s) => s.coords)
+  const match = useApp((s) => s.match)
   const nav = useNavigate()
   const [tab, setTab] = useState<'leaderboard' | 'recent'>('leaderboard')
   const [sport, setSport] = useState<SportId>(venue.sports[0])
@@ -168,11 +170,11 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
 
       <div className="gpopup-foot">
         <button
-          className="btn primary"
+          className={`btn ${match ? 'gold' : 'primary'}`}
           style={{ width: '100%', height: 46, fontSize: 14 }}
-          onClick={() => nav(`/queue/new?venue=${venue.id}&sport=${sport}`)}
+          onClick={() => nav(match ? activeMatchPath(match.phase) : `/queue/new?venue=${venue.id}&sport=${sport}`)}
         >
-          ⚡ 이 체육관에서 매칭
+          {match ? '⚡ 진행 중인 매칭으로 돌아가기' : '⚡ 이 체육관에서 매칭'}
         </button>
       </div>
     </div>

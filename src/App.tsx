@@ -3,8 +3,10 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import BottomNav from './components/BottomNav'
 import ToastHost from './components/ToastHost'
 import { useApp } from './store/useApp'
+import { useBackend } from './context/BackendProvider'
 
 import Onboarding from './screens/Onboarding'
+import LoginScreen, { AuthCallbackScreen } from './screens/LoginScreen'
 import MapScreen from './screens/MapScreen'
 import RankingScreen from './screens/RankingScreen'
 import ClanScreen from './screens/ClanScreen'
@@ -33,6 +35,32 @@ function TabLayout() {
 function Guard({ children }: { children: React.ReactNode }) {
   const account = useApp((s) => s.account)
   const loc = useLocation()
+  const backend = useBackend()
+
+  if (backend.enabled) {
+    if (!backend.ready) {
+      return (
+        <div className="screen">
+          <div className="pad stack center" style={{ minHeight: '100%', justifyContent: 'center', gap: 12 }}>
+            <div className="spinner" />
+            <strong>서버와 연결하는 중…</strong>
+          </div>
+        </div>
+      )
+    }
+    const authRoute = loc.pathname === '/login' || loc.pathname === '/auth/callback'
+    if (!backend.user) {
+      return authRoute ? <>{children}</> : <Navigate to="/login" replace />
+    }
+    if (!backend.profileReady || !account || account.interests.length === 0) {
+      return loc.pathname === '/onboarding'
+        ? <>{children}</>
+        : <Navigate to="/onboarding" replace />
+    }
+    if (authRoute || loc.pathname === '/onboarding') return <Navigate to="/" replace />
+    return <>{children}</>
+  }
+
   if (!account || account.interests.length === 0) {
     return loc.pathname === '/onboarding' ? <>{children}</> : <Navigate to="/onboarding" replace />
   }
@@ -57,6 +85,8 @@ export default function App() {
     <div className="shell">
       <Guard>
         <Routes>
+          <Route path="/login" element={<LoginScreen />} />
+          <Route path="/auth/callback" element={<AuthCallbackScreen />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
           <Route element={<TabLayout />}>

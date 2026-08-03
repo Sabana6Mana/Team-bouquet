@@ -4,14 +4,18 @@ import { useApp } from '../store/useApp'
 import { SPORT_LIST } from '../lib/game'
 import { StepDots } from '../components/ui'
 import type { SportId } from '../types'
+import { useBackend } from '../context/BackendProvider'
 
 const CARRIERS = ['SKT', 'KT', 'LG U+', '알뜰폰']
 
 export default function Onboarding() {
-  const [step, setStep] = useState(0)
+  const backend = useBackend()
+  const [step, setStep] = useState(backend.enabled ? 1 : 0)
   const signUp = useApp((s) => s.signUp)
   const setInterests = useApp((s) => s.setInterests)
   const nav = useNavigate()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState('')
   const [birth, setBirth] = useState('')
@@ -39,10 +43,10 @@ export default function Onboarding() {
             </div>
             <strong style={{ letterSpacing: 1.5, fontSize: 14 }}>MATCHPOINT</strong>
           </div>
-          <StepDots total={3} current={step} />
+          <StepDots total={backend.enabled ? 2 : 3} current={backend.enabled ? step - 1 : step} />
         </div>
 
-        {step === 0 && (
+        {!backend.enabled && step === 0 && (
           <div className="stack fade-in" style={{ gap: 18, flex: 1 }}>
             <div className="stack" style={{ gap: 8 }}>
               <h1 className="h1">본인인증으로<br />시작하기</h1>
@@ -111,7 +115,10 @@ export default function Onboarding() {
           <div className="stack fade-in" style={{ gap: 18, flex: 1 }}>
             <div className="stack" style={{ gap: 8 }}>
               <h1 className="h1">플레이어 이름을<br />정해주세요</h1>
-              <p className="body">전광판과 리더보드에 표시되는 이름입니다.</p>
+              <p className="body">
+                전광판과 리더보드에 표시되는 이름입니다.
+                {backend.enabled && <><br /><span style={{ color: 'var(--green)' }}>실명·생년월일·전화번호는 저장하지 않습니다.</span></>}
+              </p>
             </div>
             <input
               className="field" placeholder="닉네임 (2~12자)" maxLength={12}
@@ -132,7 +139,13 @@ export default function Onboarding() {
               className="btn primary"
               disabled={nickname.trim().length < 2}
               onClick={() => {
-                signUp({ name, birth, carrier, phone, nickname: nickname.trim() })
+                signUp({
+                  name: backend.enabled ? '' : name,
+                  birth: backend.enabled ? '' : birth,
+                  carrier: backend.enabled ? '' : carrier,
+                  phone: backend.enabled ? '' : phone,
+                  nickname: nickname.trim(),
+                })
                 setStep(2)
               }}
             >
@@ -176,14 +189,26 @@ export default function Onboarding() {
             <div className="grow" />
             <button
               className="btn primary"
-              disabled={picked.length === 0}
+              disabled={picked.length === 0 || saving}
               onClick={() => {
-                setInterests(picked)
-                nav('/', { replace: true })
+                void (async () => {
+                  setSaving(true)
+                  setError(null)
+                  try {
+                    if (backend.enabled) await backend.saveProfile(nickname.trim(), picked)
+                    setInterests(picked)
+                    nav('/', { replace: true })
+                  } catch (caught) {
+                    setError(caught instanceof Error ? caught.message : '프로필 저장에 실패했습니다.')
+                  } finally {
+                    setSaving(false)
+                  }
+                })()
               }}
             >
-              시작하기 {picked.length > 0 && `(${picked.length})`}
+              {saving ? '프로필 저장 중…' : `시작하기${picked.length > 0 ? ` (${picked.length})` : ''}`}
             </button>
+            {error && <p className="small" style={{ color: 'var(--red)' }}>{error}</p>}
           </div>
         )}
       </div>
