@@ -9,5 +9,9 @@ dist
 tsconfig.tsbuildinfo
 .vite
 
+# Supabase CLI local runtime and generated secrets
+supabase/.temp/
+supabase/.branches/
+
 # 안쪽에 클론해 둔 원격 저장소 (프로젝트 자체가 이 저장소로 올라간다)
 Team bouquet/
