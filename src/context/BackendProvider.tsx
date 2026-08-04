@@ -399,8 +399,38 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.user) return
     // Realtime 연결이 잠시 끊겨도 큐와 진행 중 매치가 결국 서버 상태로 수렴한다.
-    const timer = setInterval(() => { void refresh() }, currentMatchId ? 5000 : 2500)
-    return () => clearInterval(timer)
+    //
+    // 매치 밖에서는 Realtime 구독이 이미 변경을 즉시 받아오므로 폴링은 보험일 뿐이다.
+    // 2.5초로 두면 앱을 켜 두기만 해도 탭당 시간당 수천 건이 쌓여 무료 플랜 전송량을
+    // 갉아먹기 때문에, 유휴 상태는 30초로 늦추고 매치 중에만 5초를 유지한다.
+    // 또한 탭이 백그라운드일 때는 폴링을 멈추고, 다시 보일 때 한 번 따라잡는다.
+    const period = currentMatchId ? 5_000 : 30_000
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const start = () => {
+      if (timer) return
+      timer = setInterval(() => { void refresh() }, period)
+    }
+    const stop = () => {
+      if (!timer) return
+      clearInterval(timer)
+      timer = null
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh()
+        start()
+      } else {
+        stop()
+      }
+    }
+
+    onVisibility()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      stop()
+    }
   }, [session?.user?.id, currentMatchId, refresh])
 
   useEffect(() => {

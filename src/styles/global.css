@@ -64,11 +64,16 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (min-width: 900px) {
-  body {
-    display: grid; place-items: center;
-    background: radial-gradient(120% 100% at 50% 0%, #ffffff 0%, var(--court-soft) 70%);
+  /* 가운데 정렬은 #root 에서 한다. body 에 place-items 를 주면 #root 가
+     내용 크기로 줄어들고, width:100% 인 .shell 이 기준을 잃어 폭이 붕괴한다. */
+  body { background: radial-gradient(120% 100% at 50% 0%, #ffffff 0%, var(--court-soft) 70%); }
+  #root { display: grid; place-items: center; }
+  .shell {
+    width: 460px;
+    height: min(920px, 96dvh);
+    border-radius: 34px;
+    border: 1px solid var(--line);
   }
-  .shell { height: min(920px, 96dvh); border-radius: 34px; border: 1px solid var(--line); }
 }
 
 .screen {
