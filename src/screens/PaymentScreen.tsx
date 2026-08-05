@@ -4,6 +4,7 @@ import { useApp } from '../store/useApp'
 import { VENUES } from '../data/seed'
 import { MODE_LABEL, SPORTS, slotLabel, won } from '../lib/game'
 import { TopBar } from '../components/ui'
+import { useBackend } from '../context/BackendProvider'
 
 const METHODS = [
   { id: 'kakao', label: '카카오페이', emoji: '💛' },
@@ -15,7 +16,9 @@ export default function PaymentScreen() {
   const match = useApp((s) => s.match)
   const me = useApp((s) => s.me)
   const pay = useApp((s) => s.pay)
+  const cancelMatch = useApp((s) => s.cancelMatch)
   const nav = useNavigate()
+  const backend = useBackend()
   const [method, setMethod] = useState('kakao')
   const [paying, setPaying] = useState(false)
 
@@ -26,16 +29,24 @@ export default function PaymentScreen() {
 
   if (!match || match.confirmedSlot === null) return null
 
-  const venue = VENUES.find((v) => v.id === match.venueId)!
+  const venue = VENUES.find((v) => v.id === match.venueId)
+  const venueName = venue?.name ?? match.venueName ?? '매칭 장소'
   const meta = SPORTS[match.sport]
-  const perPerson = Math.round(venue.pricePerHour / match.capacity)
+  const pricePerHour = venue?.pricePerHour ?? match.venuePricePerHour
+  const perPerson = pricePerHour === undefined ? null : Math.round(pricePerHour / match.capacity)
   const paidCount = match.players.filter((p) => match.payments[p.id]).length
   const iPaid = !!match.payments[me.id]
   const allPaid = paidCount === match.capacity
 
+  const cancelActiveMatch = () => {
+    if (!window.confirm('이 매칭을 취소할까요? 확정된 장소와 시간도 다시 예약 가능 상태로 돌아갑니다.')) return
+    cancelMatch()
+    nav('/', { replace: true })
+  }
+
   return (
     <div className="overlay">
-      <TopBar title="더치페이 결제" onBack={() => nav('/')} />
+      <TopBar title={backend.enabled ? '참가 확정' : '더치페이 결제'} onBack={() => nav('/')} />
       <div className="screen">
         <div className="pad stack" style={{ gap: 18 }}>
           {/* 예약 요약 */}
@@ -45,7 +56,7 @@ export default function PaymentScreen() {
                 {meta.emoji}
               </div>
               <div className="stack grow" style={{ gap: 3 }}>
-                <strong style={{ fontSize: 15 }}>{venue.name}</strong>
+                <strong style={{ fontSize: 15 }}>{venueName}</strong>
                 <span className="small">{meta.label} {MODE_LABEL[match.mode]}</span>
               </div>
             </div>
@@ -56,18 +67,22 @@ export default function PaymentScreen() {
             </div>
             <div className="row spread">
               <span className="small">총 대관료</span>
-              <span className="mono" style={{ fontSize: 14 }}>{won(venue.pricePerHour)}</span>
+              <span className="mono" style={{ fontSize: 14 }}>
+                {pricePerHour === undefined ? '비용 확인 중' : won(pricePerHour)}
+              </span>
             </div>
             <div className="row spread">
               <span className="small">{match.capacity}인 분할</span>
-              <strong className="mono" style={{ fontSize: 20, color: 'var(--gold)' }}>{won(perPerson)}</strong>
+              <strong className="mono" style={{ fontSize: 20, color: 'var(--gold)' }}>
+                {perPerson === null ? '비용 확인 중' : won(perPerson)}
+              </strong>
             </div>
           </div>
 
           {/* 참여자 결제 현황 */}
           <div className="stack" style={{ gap: 10 }}>
             <div className="row spread">
-              <span className="label">참여자 결제 현황</span>
+              <span className="label">참여자 {backend.enabled ? '확정' : '결제'} 현황</span>
               <span className="mono small" style={{ color: allPaid ? 'var(--green)' : 'var(--gold)' }}>
                 {paidCount}/{match.capacity} 완료
               </span>
@@ -93,7 +108,7 @@ export default function PaymentScreen() {
                         <strong style={{ fontSize: 14 }}>{p.nickname}</strong>
                         {p.isMe && <span className="chip" style={{ height: 18, fontSize: 10, color: 'var(--cyan)' }}>나</span>}
                       </div>
-                      <span className="mono small">{won(perPerson)}</span>
+                      <span className="mono small">{perPerson === null ? '비용 확인 중' : won(perPerson)}</span>
                     </div>
                     <span
                       className="chip"
@@ -103,7 +118,9 @@ export default function PaymentScreen() {
                         background: done ? 'rgba(31, 138, 99,0.12)' : 'transparent',
                       }}
                     >
-                      {done ? '결제 완료!' : '결제 대기중'}
+                      {backend.enabled
+                        ? (done ? '참가 확정!' : '확정 대기중')
+                        : (done ? '결제 완료!' : '결제 대기중')}
                     </span>
                   </div>
                 )
@@ -112,7 +129,7 @@ export default function PaymentScreen() {
           </div>
 
           {/* 결제 수단 */}
-          {!iPaid && (
+          {!backend.enabled && !iPaid && (
             <div className="stack" style={{ gap: 10 }}>
               <span className="label">결제 수단</span>
               <div className="stack" style={{ gap: 8 }}>
@@ -144,9 +161,11 @@ export default function PaymentScreen() {
               style={{ gap: 8, padding: 22, borderColor: 'rgba(31, 138, 99,0.45)', background: 'rgba(31, 138, 99,0.09)', textAlign: 'center' }}
             >
               <span style={{ fontSize: 38 }}>🎉</span>
-              <strong style={{ fontSize: 17, color: 'var(--green)' }}>예약이 확정되었습니다!</strong>
+              <strong style={{ fontSize: 17, color: 'var(--green)' }}>
+                {backend.enabled ? '전원 참가가 확정되었습니다!' : '예약이 확정되었습니다!'}
+              </strong>
               <p className="small">
-                {venue.name} · {slotLabel(match.confirmedSlot)}
+                {venueName} · {slotLabel(match.confirmedSlot)}
                 <br />
                 경기가 끝나면 승패 확정 알림을 보내드립니다.
               </p>
@@ -154,19 +173,26 @@ export default function PaymentScreen() {
           )}
 
           <p className="small" style={{ fontSize: 11 }}>
-            ※ 데모 버전으로 실제 결제는 이루어지지 않습니다. 전원 결제 완료 시 저희가 체육관과 예약을 대행합니다.
+            {backend.enabled
+              ? '※ MVP에서는 실제 결제 없이 참가 의사만 확정합니다. 체육관 예약은 운영자가 별도로 확인합니다.'
+              : '※ 데모 버전으로 실제 결제는 이루어지지 않습니다. 전원 결제 완료 시 저희가 체육관과 예약을 대행합니다.'}
           </p>
         </div>
       </div>
 
-      <div style={{ padding: '12px 18px calc(16px + var(--safe-bottom))', borderTop: '1px solid var(--line)' }}>
+      <div className="stack" style={{ gap: 8, padding: '12px 18px calc(16px + var(--safe-bottom))', borderTop: '1px solid var(--line)' }}>
+        {backend.enabled && (
+          <button className="btn ghost" style={{ width: '100%', color: 'var(--red)' }} onClick={cancelActiveMatch}>
+            매칭 취소 · 예약 시간 해제
+          </button>
+        )}
         {allPaid ? (
           <button className="btn gold" style={{ width: '100%', height: 56 }} onClick={() => nav('/')}>
             지도로 돌아가기
           </button>
         ) : iPaid ? (
           <button className="btn" style={{ width: '100%', height: 56 }} disabled>
-            다른 참여자의 결제를 기다리는 중…
+            다른 참여자의 {backend.enabled ? '참가 확정을' : '결제를'} 기다리는 중…
           </button>
         ) : (
           <button
@@ -178,7 +204,11 @@ export default function PaymentScreen() {
               setTimeout(() => { pay(); setPaying(false) }, 700)
             }}
           >
-            {paying ? '결제 처리 중…' : `${won(perPerson)} 결제하기`}
+            {paying
+              ? (backend.enabled ? '참가 확정 중…' : '결제 처리 중…')
+              : (backend.enabled
+                ? '이 경기에 참가 확정'
+                : perPerson === null ? '금액 확인 후 결제' : `${won(perPerson)} 결제하기`)}
           </button>
         )}
       </div>

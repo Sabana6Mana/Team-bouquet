@@ -3,6 +3,7 @@ import { useApp } from '../store/useApp'
 import { CLANS, VENUES } from '../data/seed'
 import { HONOR_GRADES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
+import { useBackend } from '../context/BackendProvider'
 
 export default function ProfileScreen() {
   const nav = useNavigate()
@@ -11,6 +12,7 @@ export default function ProfileScreen() {
   const history = useApp((s) => s.history)
   const clanId = useApp((s) => s.clanId)
   const reset = useApp((s) => s.reset)
+  const backend = useBackend()
 
   const honor = honorOf(me.stickers)
   const clan = CLANS.find((c) => c.id === clanId)
@@ -149,11 +151,16 @@ export default function ProfileScreen() {
         {/* 계정 */}
         <div className="card stack" style={{ gap: 10 }}>
           <span className="label">계정 정보</span>
-          {[
-            ['이름', account?.name ?? '-'],
-            ['통신사', account?.carrier ?? '-'],
-            ['휴대폰', account?.phone ? account.phone.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3') : '-'],
-          ].map(([k, v]) => (
+          {(backend.enabled
+            ? [
+                ['로그인', backend.user?.is_anonymous ? '게스트 베타' : (backend.user?.email ?? '카카오 계정')],
+                ['사용자 ID', backend.user?.id.slice(0, 8) ?? '-'],
+              ]
+            : [
+                ['이름', account?.name ?? '-'],
+                ['통신사', account?.carrier ?? '-'],
+                ['휴대폰', account?.phone ? account.phone.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3') : '-'],
+              ]).map(([k, v]) => (
             <div key={k} className="row spread">
               <span className="small">{k}</span>
               <span style={{ fontSize: 13 }}>{v}</span>
@@ -161,9 +168,19 @@ export default function ProfileScreen() {
           ))}
         </div>
 
-          <button className="btn ghost" style={{ width: '100%', color: 'var(--red)' }} onClick={reset}>
-            데이터 초기화 (데모)
-          </button>
+        <button
+          className="btn ghost"
+          style={{ width: '100%', color: 'var(--red)' }}
+          onClick={() => {
+            if (backend.enabled) {
+              void backend.signOut().then(() => nav('/login', { replace: true }))
+              return
+            }
+            reset()
+          }}
+        >
+          {backend.enabled ? '로그아웃' : '데이터 초기화 (데모)'}
+        </button>
         </div>
       </div>
     </div>

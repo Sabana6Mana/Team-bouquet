@@ -6,8 +6,9 @@ import {
   MODE_LABEL, QUICK_RADIUS_M, SPORTS, SPORT_LIST,
   capacityOf, distanceLabel, distanceMeters, won,
 } from '../lib/game'
-import { TopBar } from '../components/ui'
+import { activeMatchPath, TopBar } from '../components/ui'
 import type { MatchMode, SportId } from '../types'
+import { useBackend } from '../context/BackendProvider'
 
 export default function MatchSetup() {
   const [params] = useSearchParams()
@@ -15,6 +16,8 @@ export default function MatchSetup() {
   const startQueue = useApp((s) => s.startQueue)
   const coords = useApp((s) => s.coords)
   const account = useApp((s) => s.account)
+  const activeMatch = useApp((s) => s.match)
+  const backend = useBackend()
 
   /** 장소를 고르지 않고 반경 안의 플레이어와 매칭하는 모드 */
   const quick = params.get('quick') === '1'
@@ -184,7 +187,7 @@ export default function MatchSetup() {
               <strong className="mono" style={{ fontSize: 14 }}>{cap}명</strong>
             </div>
             <div className="row spread">
-              <span className="small">예상 더치페이 금액</span>
+              <span className="small">{backend.enabled ? '예상 1인 비용' : '예상 더치페이 금액'}</span>
               <strong className="mono" style={{ fontSize: 14, color: 'var(--gold)' }}>
                 {venue
                   ? won(Math.round(venue.pricePerHour / cap))
@@ -193,8 +196,8 @@ export default function MatchSetup() {
             </div>
             <p className="small" style={{ fontSize: 11 }}>
               {quick
-                ? `주변 ${QUICK_RADIUS_M / 1000}km 안에서 같은 종목을 고른 플레이어를 찾습니다. 인원이 모이면 알림과 함께 체육관이 배정되고, 시간 조율 후 전원 결제 시 예약이 확정됩니다.`
-                : '인원이 모두 모이면 알림을 보내드립니다. 시간 조율 후 전원 결제 시 예약이 확정됩니다.'}
+                ? `주변 ${QUICK_RADIUS_M / 1000}km 안에서 같은 종목을 고른 플레이어를 찾습니다. 인원이 모이면 알림과 함께 체육관이 배정되고, 시간 조율 후 전원이 ${backend.enabled ? '참가를 확정하면' : '결제하면'} 예약 단계로 넘어갑니다.`
+                : `인원이 모두 모이면 알림을 보내드립니다. 시간 조율 후 전원이 ${backend.enabled ? '참가를 확정하면' : '결제하면'} 예약 단계로 넘어갑니다.`}
             </p>
           </div>
         </div>
@@ -202,14 +205,18 @@ export default function MatchSetup() {
 
       <div style={{ padding: '12px 18px calc(16px + var(--safe-bottom))', borderTop: '1px solid var(--line)' }}>
         <button
-          className="btn primary"
+          className={`btn ${activeMatch ? 'gold' : 'primary'}`}
           style={{ width: '100%', height: 56, fontSize: 16 }}
           onClick={() => {
+            if (activeMatch) {
+              nav(activeMatchPath(activeMatch.phase), { replace: true })
+              return
+            }
             startQueue(venue ? venue.id : null, sport, mode)
             nav('/queue', { replace: true })
           }}
         >
-          ⚡ 큐 돌리기
+          {activeMatch ? '⚡ 진행 중인 매칭으로 돌아가기' : '⚡ 큐 돌리기'}
         </button>
       </div>
     </div>

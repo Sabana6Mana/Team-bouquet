@@ -70,6 +70,9 @@ export interface Match {
   venueId: string
   /** 장소를 고르지 않고 반경 안의 플레이어와 매칭한 경우 */
   quick: boolean
+  /** 라이브 백엔드가 내려준 장소 스냅샷. 정적 seed에 없는 장소도 안전하게 표시한다. */
+  venueName?: string
+  venuePricePerHour?: number
   sport: SportId
   mode: MatchMode
   capacity: number
@@ -79,6 +82,8 @@ export interface Match {
   /** playerId -> 투표한 슬롯 (encodeSlot 으로 날짜+시각을 인코딩) */
   votes: Record<string, number>
   confirmedSlot: number | null
+  /** 라이브 백엔드 확정 슬롯 종료 시각(ms). 종료 전 결과 조작을 막는 UI 가드에 쓴다. */
+  confirmedSlotEndsAt?: number
   /** playerId -> 결제 완료 여부 */
   payments: Record<string, boolean>
   chat: ChatMessage[]

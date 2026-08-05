@@ -8,6 +8,7 @@ import {
   recommendTeams, teamAvg, TIME_SLOTS,
 } from '../lib/game'
 import { BOT_CHATS, HOME, NPCS, VENUES } from '../data/seed'
+import { backendApi, backendConfig } from '../backend'
 
 /** 데모 시뮬레이션용 타이머. 상태에 넣으면 직렬화가 깨지므로 모듈 레벨에서 관리한다. */
 let timers: ReturnType<typeof setTimeout>[] = []
@@ -59,6 +60,14 @@ interface AppState {
   /** 화면 위에 배너로 띄울 알림 */
   toast: AppNotification | null
   clanId: string | null
+  /** Supabase 모드의 초기화/동기화 상태. 환경 변수가 없으면 항상 demo다. */
+  backendStatus: 'demo' | 'loading' | 'ready' | 'error'
+  backendUserId: string | null
+  backendError: string | null
+  /** 기존 숫자 슬롯 -> Supabase venue_slots UUID */
+  backendSlotIds: Record<number, string>
+  /** RPC 성공 뒤 BackendProvider에 즉시 재조회를 요청하는 증가값 */
+  backendRefreshVersion: number
 
   signUp: (a: Omit<Account, 'interests'>) => void
   setInterests: (ids: SportId[]) => void
@@ -79,6 +88,7 @@ interface AppState {
   finalizeResult: (winner: 'a' | 'b') => void
   giveSticker: (playerId: string) => void
   finishMatch: () => void
+  openReporting: () => void
 
   notify: (title: string, body: string, link?: string) => void
   dismissToast: () => void
@@ -98,6 +108,11 @@ export const useApp = create<AppState>()(
       notifications: [],
       toast: null,
       clanId: null,
+      backendStatus: backendConfig.configured ? 'loading' : 'demo',
+      backendUserId: null,
+      backendError: null,
+      backendSlotIds: {},
+      backendRefreshVersion: 0,
 
       signUp: (a) => {
         const me: Player = {
@@ -119,6 +134,12 @@ export const useApp = create<AppState>()(
 
       startQueue: (venueId, sport, mode) => {
         clearTimers()
+        const previousMatch = get().match
+        if (backendConfig.configured && previousMatch) {
+          get().notify('진행 중인 매치가 있어요', '현재 매치를 먼저 완료하거나 취소해 주세요.')
+          set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
+          return previousMatch.id
+        }
         const capacity = capacityOf(mode)
         const me = get().me
         const id = uid('match')
@@ -145,6 +166,29 @@ export const useApp = create<AppState>()(
           createdAt: Date.now(),
         }
         set({ match })
+
+        if (backendConfig.configured) {
+          void backendApi.queue.join({
+            venueId,
+            sport,
+            mode,
+            location: venueId === null ? get().coords : null,
+          }).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '매칭 큐 참가에 실패했습니다.'
+            set((state) => ({
+              match: state.match?.id === id ? previousMatch : state.match,
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('매칭 시작 실패', message)
+          })
+          return id
+        }
 
         // 비슷한 ELO의 상대를 순차적으로 큐에 채운다.
         const myElo = me.elo[sport]
@@ -199,6 +243,25 @@ export const useApp = create<AppState>()(
 
       cancelMatch: () => {
         clearTimers()
+        if (backendConfig.configured) {
+          const matchId = get().match?.id
+          void backendApi.queue.cancel().then((cancelled) => {
+            set((state) => ({
+              match: cancelled && state.match?.id === matchId ? null : state.match,
+              backendError: cancelled ? null : '취소할 매칭을 찾지 못했습니다.',
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            if (!cancelled) get().notify('취소할 매칭이 없어요', '서버 상태를 다시 확인하고 있습니다.')
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '매칭 큐 취소에 실패했습니다.'
+            set((state) => ({
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('큐 취소 실패', message)
+          })
+          return
+        }
         set({ match: null })
       },
 
@@ -209,6 +272,27 @@ export const useApp = create<AppState>()(
         if (!m) return
         const votes = { ...m.votes, [get().me.id]: slot }
         set({ match: { ...m, votes } })
+
+        if (backendConfig.configured) {
+          const venueSlotId = get().backendSlotIds[slot]
+          if (!venueSlotId) {
+            const message = '서버의 예약 가능 시간과 연결되지 않은 슬롯입니다. 새로고침 후 다시 시도해 주세요.'
+            set({ backendError: message })
+            get().notify('시간 투표 실패', message)
+            return
+          }
+          void backendApi.votes.slot(m.id, venueSlotId).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '시간 투표에 실패했습니다.'
+            set({ backendError: message })
+            get().notify('시간 투표 실패', message)
+          })
+          return
+        }
 
         // 내가 투표하면 상대들이 순차적으로 동의하며 시간이 수렴한다.
         const bots = m.players.filter((p) => !p.isMe)
@@ -259,6 +343,15 @@ export const useApp = create<AppState>()(
             chat: [...m.chat, { id: uid('c'), playerId: get().me.id, at: Date.now(), text: text.trim() }],
           },
         })
+        if (backendConfig.configured) {
+          void backendApi.messages.send(m.id, text).then(() => {
+            set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '메시지 전송에 실패했습니다.'
+            set({ backendError: message })
+            get().notify('채팅 전송 실패', message)
+          })
+        }
       },
 
       /* ─────────────── 팀 구성 ─────────────── */
@@ -266,7 +359,28 @@ export const useApp = create<AppState>()(
       setTeams: (a, b) => {
         const m = get().match
         if (!m) return
-        // 구성이 바뀌면 모두의 준비 상태를 초기화하고 상대들이 다시 반응한다.
+        if (backendConfig.configured) {
+          if (m.hostId !== get().me.id) {
+            get().notify('호스트만 팀을 바꿀 수 있어요', '호스트의 팀 확정을 기다려 주세요.')
+            set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
+            return
+          }
+          void backendApi.matches.setTeams(m.id, a, b).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '팀 구성 저장에 실패했습니다.'
+            set((state) => ({
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('팀 구성 실패', message)
+          })
+          return
+        }
+        // 데모에서는 구성이 바뀌면 준비 상태를 초기화하고 NPC들이 다시 반응한다.
         set({ match: { ...m, teams: { a, b }, teamReady: {} } })
         scheduleTeamReactions(m.id, get, set)
       },
@@ -276,6 +390,22 @@ export const useApp = create<AppState>()(
         if (!m || m.phase !== 'teaming') return
         const half = m.capacity / 2
         if (m.teams.a.length !== half || m.teams.b.length !== half) return
+        if (backendConfig.configured) {
+          void backendApi.matches.setReady(m.id, ready).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '준비 상태 저장에 실패했습니다.'
+            set((state) => ({
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('준비 상태 저장 실패', message)
+          })
+          return
+        }
         const next = { ...m.teamReady, [get().me.id]: ready }
         set({ match: { ...m, teamReady: next } })
         if (ready && m.players.every((p) => next[p.id])) get().advanceToPayment()
@@ -284,6 +414,10 @@ export const useApp = create<AppState>()(
       advanceToPayment: () => {
         const m = get().match
         if (!m || m.phase !== 'teaming') return
+        if (backendConfig.configured) {
+          set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
+          return
+        }
         set({
           match: {
             ...m,
@@ -300,6 +434,33 @@ export const useApp = create<AppState>()(
         const m = get().match
         if (!m || m.reports[playerId]) return
         set({ match: { ...m, reports: { ...m.reports, [playerId]: reason } } })
+        if (backendConfig.configured) {
+          void backendApi.reports.create({
+            reportedId: playerId,
+            matchId: m.id,
+            reason,
+          }).then(() => {
+            get().notify(
+              '신고가 접수되었습니다',
+              '운영팀이 검토 후 조치합니다. 신고 사실은 상대에게 공개되지 않습니다.',
+            )
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '신고 접수에 실패했습니다.'
+            set((state) => ({
+              match: state.match?.id === m.id
+                ? {
+                    ...state.match,
+                    reports: Object.fromEntries(
+                      Object.entries(state.match.reports).filter(([id]) => id !== playerId),
+                    ),
+                  }
+                : state.match,
+              backendError: message,
+            }))
+            get().notify('신고 접수 실패', message)
+          })
+          return
+        }
         get().notify(
           '신고가 접수되었습니다',
           '운영팀이 검토 후 조치합니다. 신고 사실은 상대에게 공개되지 않습니다.',
@@ -311,8 +472,33 @@ export const useApp = create<AppState>()(
       pay: () => {
         const m = get().match
         if (!m) return
-        const payments = { ...m.payments, [get().me.id]: true }
+        const meId = get().me.id
+        const previousPayment = m.payments[meId] ?? false
+        const payments = { ...m.payments, [meId]: true }
         set({ match: { ...m, payments } })
+
+        if (backendConfig.configured) {
+          void backendApi.matches.confirmAttendance(m.id).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '참가 확정에 실패했습니다.'
+            set((state) => ({
+              match: state.match?.id === m.id
+                ? {
+                    ...state.match,
+                    payments: { ...state.match.payments, [meId]: previousPayment },
+                  }
+                : state.match,
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('참가 확정 실패', message)
+          })
+          return
+        }
 
         const bots = m.players.filter((p) => !p.isMe)
         bots.forEach((b, i) => {
@@ -347,6 +533,31 @@ export const useApp = create<AppState>()(
         const votes = { ...m.resultVotes, [meId]: winner }
         set({ match: { ...m, resultVotes: votes } })
 
+        if (backendConfig.configured) {
+          void backendApi.votes.result(m.id, winner).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '경기 결과 투표에 실패했습니다.'
+            set((state) => ({
+              match: state.match?.id === m.id
+                ? {
+                    ...state.match,
+                    resultVotes: Object.fromEntries(
+                      Object.entries(state.match.resultVotes).filter(([id]) => id !== meId),
+                    ),
+                  }
+                : state.match,
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('결과 투표 실패', message)
+          })
+          return
+        }
+
         // 내가 투표하면 상대들이 순차적으로 같은 결과에 동의한다.
         const bots = m.players.filter((p) => !p.isMe)
         bots.forEach((b, i) => {
@@ -365,6 +576,7 @@ export const useApp = create<AppState>()(
       finalizeResult: (winner) => {
         const m = get().match
         if (!m || m.result) return
+        if (backendConfig.configured) return
         const sport = m.sport
         const meId = get().me.id
         const myTeam = m.teams.a.includes(meId) ? 'a' : 'b'
@@ -395,6 +607,10 @@ export const useApp = create<AppState>()(
       giveSticker: (playerId) => {
         const m = get().match
         if (!m || m.stickersGiven.includes(playerId)) return
+        if (backendConfig.configured) {
+          get().notify('칭찬 기능 준비 중', '실사용자 칭찬 스티커는 다음 MVP 단계에서 저장됩니다.')
+          return
+        }
         set({ match: { ...m, stickersGiven: [...m.stickersGiven, playerId] } })
         // 데모: 상대도 나에게 스티커를 보내 명예 등급이 오른다.
         const me = get().me
@@ -420,7 +636,47 @@ export const useApp = create<AppState>()(
           eloDelta: delta,
         }
         clearTimers()
+        if (backendConfig.configured) {
+          void backendApi.matches.complete(m.id).then(() => {
+            clearTimers()
+            set((state) => ({
+              history: state.history.some((item) => item.id === record.id)
+                ? state.history
+                : [record, ...state.history],
+              match: state.match?.id === m.id ? null : state.match,
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '경기 완료 처리에 실패했습니다.'
+            set((state) => ({
+              backendError: message,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+            }))
+            get().notify('경기 완료 처리 실패', message)
+          })
+          return
+        }
         set({ history: [record, ...get().history], match: null })
+      },
+
+      openReporting: () => {
+        const m = get().match
+        if (!m) return
+        if (!backendConfig.configured) {
+          set({ match: { ...m, phase: 'reporting' } })
+          return
+        }
+        void backendApi.matches.openReporting(m.id).then(() => {
+          set((state) => ({
+            match: state.match ? { ...state.match, phase: 'reporting' } : null,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : '결과 입력을 시작하지 못했습니다.'
+          set({ backendError: message })
+          get().notify('결과 입력 시작 실패', message)
+        })
       },
 
       /* ─────────────── 알림 ─────────────── */
@@ -442,15 +698,18 @@ export const useApp = create<AppState>()(
         set({
           account: null, me: emptyMe(), match: null, history: [],
           notifications: [], toast: null, clanId: null, coords: HOME,
+          backendSlotIds: {}, backendError: null,
         })
       },
     }),
     {
-      name: 'matchpoint-v1',
-      partialize: (s) => ({
-        account: s.account, me: s.me, history: s.history,
-        notifications: s.notifications, clanId: s.clanId,
-      }),
+      name: backendConfig.configured ? 'matchpoint-backend-v1' : 'matchpoint-v1',
+      partialize: (s) => backendConfig.configured
+        ? { coords: s.coords }
+        : {
+            account: s.account, me: s.me, history: s.history,
+            notifications: s.notifications, clanId: s.clanId,
+          },
     },
   ),
 )

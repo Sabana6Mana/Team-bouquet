@@ -44,7 +44,7 @@ export default function QueueScreen() {
           <div className="stack center" style={{ gap: 7, textAlign: 'center' }}>
             <h1 className="h1">상대를 찾는 중…</h1>
             <p className="body">
-              {venue ? venue.name : `주변 ${QUICK_RADIUS_M / 1000}km`} · {meta.label} {MODE_LABEL[match.mode]}
+              {venue?.name ?? match.venueName ?? `주변 ${QUICK_RADIUS_M / 1000}km`} · {meta.label} {MODE_LABEL[match.mode]}
             </p>
             {!venue && (
               <span className="small" style={{ fontSize: 11 }}>
@@ -106,7 +106,11 @@ export default function QueueScreen() {
         <button
           className="btn ghost"
           style={{ width: '100%', color: 'var(--red)' }}
-          onClick={() => { cancel(); nav('/', { replace: true }) }}
+          onClick={() => {
+            if (!window.confirm('대기 중인 매칭을 취소할까요?')) return
+            cancel()
+            nav('/', { replace: true })
+          }}
         >
           매칭 취소
         </button>
