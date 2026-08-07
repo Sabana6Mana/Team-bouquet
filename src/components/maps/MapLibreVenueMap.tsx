@@ -38,9 +38,19 @@ function firstLabelLayerId(map: MapLibreMap): string | undefined {
   ))?.id
 }
 
+/** 기본 지도 건물 바닥도 옅게 만들어 체육관 거점만 또렷하게 남긴다. */
+function softenBaseBuildingLayers(map: MapLibreMap) {
+  map.getStyle().layers.forEach((layer) => {
+    const sourceLayer = (layer as { 'source-layer'?: string })['source-layer']
+    if (sourceLayer !== 'building' || layer.type !== 'fill') return
+    try { map.setPaintProperty(layer.id, 'fill-opacity', 0.1) } catch { /* 스타일별 차이는 무시한다. */ }
+  })
+}
+
 /** 지도 스타일이 바뀌어도 게임용 3D 건물과 경로 레이어를 다시 보장한다. */
 function ensureGameLayers(map: MapLibreMap) {
   const beforeId = firstLabelLayerId(map)
+  softenBaseBuildingLayers(map)
 
   if (!map.getSource(BUILDING_SOURCE_ID)) {
     map.addSource(BUILDING_SOURCE_ID, {
@@ -70,7 +80,8 @@ function ensureGameLayers(map: MapLibreMap) {
           15.4, ['coalesce', ['get', 'render_height'], ['get', 'height'], 10],
         ],
         'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
-        'fill-extrusion-opacity': 0.84,
+        // 일반 도시는 유리 모형처럼 비치게 하고 DOM 체육관 거점은 불투명하게 둔다.
+        'fill-extrusion-opacity': 0.26,
       },
     }, beforeId)
   }
