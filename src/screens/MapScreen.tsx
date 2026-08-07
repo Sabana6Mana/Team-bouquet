@@ -28,8 +28,8 @@ export default function MapScreen() {
 
   // 네이버 오버레이 동기화 effect가 이 배열을 의존하므로 참조를 고정한다.
   const markers: MapMarker[] = useMemo(
-    () =>
-      venues.map((v) => {
+    () => {
+      const mapped = venues.map((v) => {
         const primary = (filter !== 'all' ? filter : v.sports[0]) as SportId
         const s = SPORTS[primary]
         const top = leaderboardOf(v.id, primary)[0]
@@ -37,10 +37,17 @@ export default function MapScreen() {
           id: v.id, lat: v.lat, lng: v.lng,
           emoji: s.emoji, color: s.color,
           label: v.name.length > 10 ? v.name.slice(0, 9) + '…' : v.name,
+          fullLabel: v.name,
+          sportLabel: s.label,
           hot: HOT_VENUE_IDS.includes(v.id),
           tierColor: top ? tierOf(top.elo[primary]).color : '#8296B4',
+          elo: top?.elo[primary] ?? 1200,
+          crowned: false,
         }
-      }),
+      })
+      const highestElo = Math.max(...mapped.map((marker) => marker.elo))
+      return mapped.map((marker) => ({ ...marker, crowned: marker.elo === highestElo }))
+    },
     [venues, filter],
   )
 

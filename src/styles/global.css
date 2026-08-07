@@ -246,6 +246,299 @@ a { color: inherit; text-decoration: none; }
 .map-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .map-canvas { position: absolute; inset: 0; }
 
+/* ───────────── MapLibre 게임 지도 ───────────── */
+
+.maplibre-map-wrap {
+  isolation: isolate;
+  background: linear-gradient(180deg, #eaf2f6 0%, #f8fbfc 100%);
+}
+.maplibre-canvas,
+.maplibre-canvas .maplibregl-canvas-container,
+.maplibre-canvas .maplibregl-canvas { width: 100%; height: 100%; }
+.maplibre-canvas .maplibregl-canvas { outline: none; }
+.maplibre-map-wrap .maplibregl-ctrl-bottom-left {
+  left: 6px;
+  bottom: 82px;
+  z-index: 24;
+}
+.maplibre-map-wrap .maplibregl-ctrl-attrib {
+  color: #52646f;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+}
+.map-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(240, 247, 252, 0.34) 0%, transparent 23%),
+    radial-gradient(110% 80% at 50% 48%, transparent 58%, rgba(217, 230, 238, 0.34) 100%);
+}
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 27;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #416052;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(180deg, rgba(245, 250, 252, 0.96), rgba(236, 245, 240, 0.94));
+}
+
+.venue-entity {
+  position: relative;
+  width: 142px;
+  height: 138px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: var(--venue-color, var(--court));
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.venue-platform {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 114px;
+  height: 32px;
+  transform: translateX(-50%);
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 18%, rgba(255, 255, 255, 0.72));
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, currentColor 12%, transparent),
+    0 0 22px color-mix(in srgb, currentColor 58%, transparent);
+  transition: width 0.2s ease, opacity 0.2s ease;
+}
+.venue-beam {
+  position: absolute;
+  left: 50%;
+  bottom: 25px;
+  width: 28px;
+  height: 170px;
+  transform: translateX(-50%);
+  opacity: 0.48;
+  pointer-events: none;
+  background: linear-gradient(to top, currentColor 0%, color-mix(in srgb, currentColor 26%, transparent) 48%, transparent 100%);
+  clip-path: polygon(38% 100%, 62% 100%, 100% 0, 0 0);
+  filter: blur(5px) drop-shadow(0 0 8px currentColor);
+}
+.venue-building {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  transform: translateX(-50%) scale(0.92);
+  transform-origin: 50% 88%;
+  filter: drop-shadow(0 10px 8px rgba(60, 79, 89, 0.3));
+  transition: transform 0.22s cubic-bezier(0.2, 1.2, 0.4, 1), filter 0.22s ease;
+  pointer-events: none;
+}
+.venue-sport-badge {
+  position: absolute;
+  left: 50%;
+  top: 45px;
+  width: 29px;
+  height: 29px;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--venue-color, var(--court));
+  box-shadow: 0 2px 9px rgba(31, 50, 40, 0.34), 0 0 13px currentColor;
+  font-size: 15px;
+  line-height: 1;
+  pointer-events: none;
+}
+.venue-crown {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  z-index: 3;
+  transform: translateX(-50%) translateY(6px) scale(0.72);
+  opacity: 0;
+  color: #f8b913;
+  font-size: 31px;
+  line-height: 1;
+  text-shadow: 0 2px 0 #fff3ae, 0 0 13px rgba(248, 185, 19, 0.78);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.venue-label {
+  position: absolute;
+  left: calc(50% + 39px);
+  top: 31px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 108px;
+  max-width: 154px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 62%, #ffffff);
+  border-radius: 10px;
+  color: #f1fff6;
+  background: rgba(7, 44, 27, 0.94);
+  box-shadow: 0 7px 17px rgba(8, 35, 22, 0.34), 0 0 12px color-mix(in srgb, currentColor 32%, transparent);
+  opacity: 0;
+  transform: translateX(-8px) scale(0.92);
+  transform-origin: left center;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.2s ease;
+}
+.venue-label::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 24px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-left: inherit;
+  border-bottom: inherit;
+  transform: rotate(45deg);
+}
+.venue-label__name {
+  overflow: hidden;
+  color: #58ee94;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.venue-label__elo {
+  color: #fff;
+  font-family: 'SF Mono', 'Cascadia Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+.venue-entity.is-selected .venue-building {
+  transform: translateX(-50%) scale(1.08);
+  filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
+}
+.venue-entity.is-selected .venue-platform { width: 128px; }
+.venue-entity.is-selected .venue-beam { opacity: 0.85; animation: venueBeam 1.9s ease-in-out infinite; }
+.venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
+.venue-entity.is-crowned .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.venue-entity.is-hot:not(.is-selected)::after {
+  content: '●';
+  position: absolute;
+  right: 16px;
+  top: 29px;
+  color: #ff7d45;
+  font-size: 10px;
+  text-shadow: 0 0 9px #ff6b39;
+}
+@keyframes venueBeam {
+  0%, 100% { filter: blur(5px) drop-shadow(0 0 6px currentColor); }
+  50% { filter: blur(4px) drop-shadow(0 0 15px currentColor); }
+}
+
+.player-map-marker {
+  position: relative;
+  width: 104px;
+  height: 112px;
+  pointer-events: none;
+}
+.player-platform {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 86px;
+  height: 42px;
+  transform: translateX(-50%);
+  border: 2px solid #39e4f2;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 7%, transparent 8%),
+    repeating-conic-gradient(from 8deg, rgba(87, 237, 255, 0.94) 0 5deg, transparent 5deg 43deg),
+    rgba(34, 210, 238, 0.17);
+  box-shadow: 0 0 0 7px rgba(52, 224, 244, 0.13), 0 0 24px rgba(30, 210, 242, 0.75);
+  animation: playerPulse 2.2s ease-in-out infinite;
+}
+.player-direction {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 11px solid #39e4f2;
+  filter: drop-shadow(0 0 5px #39e4f2);
+}
+.player-dino {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 5px rgba(21, 75, 43, 0.34));
+}
+@keyframes playerPulse {
+  0%, 100% { transform: translateX(-50%) scale(0.94); opacity: 0.84; }
+  50% { transform: translateX(-50%) scale(1.05); opacity: 1; }
+}
+
+.map-location-control {
+  position: absolute;
+  right: 14px;
+  bottom: 92px;
+  z-index: 28;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(201, 215, 206, 0.9);
+  border-radius: 16px;
+  color: var(--court);
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 6px 17px rgba(18, 52, 32, 0.2);
+  backdrop-filter: blur(14px);
+}
+.location-reticle {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px #fff;
+}
+.location-reticle::before,
+.location-reticle::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+}
+.location-reticle::before { left: 8px; top: -6px; width: 2px; height: 30px; }
+.location-reticle::after { left: -6px; top: 8px; width: 30px; height: 2px; }
+
+@media (max-height: 720px) {
+  .venue-entity { transform-origin: bottom; }
+  .venue-building { width: 116px; height: 116px; }
+  .venue-entity { width: 126px; height: 124px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .venue-entity.is-selected .venue-beam,
+  .player-platform { animation: none; }
+}
+
 /* 마커 공통 모양. 내장 맵과 네이버 오버레이가 이 스타일을 함께 쓴다. */
 .mk {
   display: flex; flex-direction: column; align-items: center;
