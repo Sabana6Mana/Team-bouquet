@@ -3,165 +3,164 @@ import { useNavigate } from 'react-router-dom'
 import VenueMap, { type MapMarker } from '../components/VenueMap'
 import VenueSheet from '../components/VenueSheet'
 import RankTicker from '../components/RankTicker'
-import { useApp } from '../store/useApp'
-import { HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
-import { QUICK_RADIUS_M, SPORTS, tierOf } from '../lib/game'
-import type { SportId } from '../types'
 import { activeMatchPath } from '../components/ui'
+import { HOME, HOT_VENUE_IDS, NPCS, REGION, VENUES, leaderboardOf } from '../data/seed'
+import { QUICK_RADIUS_M, SPORTS, distanceMeters, tierOf } from '../lib/game'
+import { useApp } from '../store/useApp'
+import type { SportId } from '../types'
+
+const MAP_SPORTS: SportId[] = ['badminton', 'tennis', 'tabletennis', 'basketball']
 
 export default function MapScreen() {
-  const me = useApp((s) => s.me)
-  const coords = useApp((s) => s.coords)
-  const account = useApp((s) => s.account)
-  const match = useApp((s) => s.match)
+  const me = useApp((state) => state.me)
+  const coords = useApp((state) => state.coords)
+  const account = useApp((state) => state.account)
+  const match = useApp((state) => state.match)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<SportId | 'all'>('all')
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [sport, setSport] = useState<SportId>('badminton')
   const [filterOpen, setFilterOpen] = useState(false)
   const nav = useNavigate()
 
-  const interests = account?.interests ?? []
-
   const venues = useMemo(
-    () => (filter === 'all' ? VENUES : VENUES.filter((v) => v.sports.includes(filter))),
-    [filter],
+    () => VENUES.filter((venue) => venue.sports.includes(sport)),
+    [sport],
   )
 
-  // 네이버 오버레이 동기화 effect가 이 배열을 의존하므로 참조를 고정한다.
-  const markers: MapMarker[] = useMemo(
-    () => {
-      const mapped = venues.map((v) => {
-        const primary = (filter !== 'all' ? filter : v.sports[0]) as SportId
-        const s = SPORTS[primary]
-        const top = leaderboardOf(v.id, primary)[0]
-        return {
-          id: v.id, lat: v.lat, lng: v.lng,
-          emoji: s.emoji, color: s.color,
-          label: v.name.length > 10 ? v.name.slice(0, 9) + '…' : v.name,
-          fullLabel: v.name,
-          sportLabel: s.label,
-          hot: HOT_VENUE_IDS.includes(v.id),
-          tierColor: top ? tierOf(top.elo[primary]).color : '#8296B4',
-          elo: top?.elo[primary] ?? 1200,
-          crowned: false,
-        }
-      })
-      const highestElo = Math.max(...mapped.map((marker) => marker.elo))
-      return mapped.map((marker) => ({ ...marker, crowned: marker.elo === highestElo }))
-    },
-    [venues, filter],
-  )
+  const markers: MapMarker[] = useMemo(() => {
+    const meta = SPORTS[sport]
+    const mapped = venues.map((venue) => {
+      const top = leaderboardOf(venue.id, sport)[0]
+      return {
+        id: venue.id,
+        lat: venue.lat,
+        lng: venue.lng,
+        emoji: meta.emoji,
+        sportLabel: meta.label,
+        color: meta.color,
+        label: venue.name.length > 10 ? `${venue.name.slice(0, 9)}…` : venue.name,
+        fullLabel: venue.name,
+        hot: HOT_VENUE_IDS.includes(venue.id),
+        tierColor: top ? tierOf(top.elo[sport]).color : '#8296B4',
+        elo: top?.elo[sport] ?? 1200,
+        crowned: false,
+      }
+    })
+    const highestElo = Math.max(...mapped.map((marker) => marker.elo))
+    return mapped.map((marker) => ({ ...marker, crowned: marker.elo === highestElo }))
+  }, [venues, sport])
 
-  const active = VENUES.find((v) => v.id === activeId) ?? null
-  const bestElo = Math.max(...Object.values(me.elo))
-  const tier = tierOf(bestElo)
+  const active = venues.find((venue) => venue.id === activeId) ?? null
+  const detailVenue = VENUES.find((venue) => venue.id === detailId) ?? null
+  const playerTier = tierOf(me.elo[sport])
+  const champion = [...NPCS, me].sort((a, b) => b.elo[sport] - a.elo[sport])[0]
+  const interests = account?.interests ?? []
+  const quickMode = SPORTS[sport].modes[0]
+
+  // 경진대회 지도는 강남 거점을 먼저 보여준다. 실제 위치가 강남 생활권이면
+  // 그대로 쓰고, 멀리 있으면 데모 스폰 지점만 지도 연출에 사용한다.
+  const mapPosition = distanceMeters(coords, HOME) <= QUICK_RADIUS_M * 2 ? coords : HOME
+
+  const selectSport = (next: SportId) => {
+    setSport(next)
+    setActiveId(null)
+    setDetailId(null)
+    setFilterOpen(false)
+  }
+
+  const selectVenue = (id: string) => {
+    if (activeId === id) {
+      setDetailId(id)
+      return
+    }
+    setActiveId(id)
+    setDetailId(null)
+  }
+
+  const startMatch = () => {
+    if (match) {
+      nav(activeMatchPath(match.phase))
+      return
+    }
+    if (active) {
+      nav(`/queue/new?venue=${active.id}&sport=${sport}`)
+      return
+    }
+    nav(`/queue/new?quick=1&sport=${sport}`)
+  }
 
   return (
-    <>
-      {/* 상단 바 — 플레이어 요약(축소) + 종목 필터 버튼 */}
-      <div
-        style={{
-          position: 'absolute', top: 10, left: 12, right: 12, zIndex: 36,
-          display: 'flex', gap: 8, alignItems: 'stretch',
-        }}
-      >
-        <button
-          onClick={() => nav('/profile')}
-          aria-label="내 프로필 열기"
-          style={{
-            flex: 1, minWidth: 0,
-            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-            background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(16px)',
-            border: '1px solid var(--line)', borderRadius: 12,
-            boxShadow: '0 3px 10px rgba(18,52,32,0.1)',
-            textAlign: 'left',
-          }}
-        >
-          <div className="avatar sm">{me.avatar}</div>
-          <div className="stack grow" style={{ gap: 1, minWidth: 0 }}>
-            <strong
-              style={{
-                fontSize: 12.5, lineHeight: 1.2,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}
-            >
-              {me.nickname}
-            </strong>
-            <span className="mono" style={{ fontSize: 10, color: tier.color, fontWeight: 800 }}>
-              {tier.name} {bestElo}
-              <span style={{ color: 'var(--muted)', fontWeight: 600 }}> · {me.wins}승 {me.losses}패</span>
-            </span>
-          </div>
-          <span style={{ fontSize: 14, color: 'var(--dim)', flexShrink: 0 }}>›</span>
-        </button>
+    <main className="map-screen">
+      <VenueMap
+        center={HOME}
+        me={mapPosition}
+        markers={markers}
+        activeId={activeId}
+        onMarkerClick={selectVenue}
+        focus={active ? { lat: active.lat, lng: active.lng } : null}
+      />
 
-        <button
-          onClick={() => setFilterOpen((o) => !o)}
-          aria-label="종목 필터"
-          aria-expanded={filterOpen}
-          style={{
-            width: 50, flexShrink: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
-            background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(16px)',
-            border: `1px solid ${filter === 'all' ? 'var(--line)' : SPORTS[filter].color}`,
-            borderRadius: 12,
-            boxShadow: '0 3px 10px rgba(18,52,32,0.1)',
-          }}
-        >
-          <span style={{ fontSize: 17, lineHeight: 1 }}>
-            {filter === 'all' ? '🏟️' : SPORTS[filter].emoji}
-          </span>
-          <span
-            style={{
-              fontSize: 8, lineHeight: 1,
-              color: filter === 'all' ? 'var(--muted)' : SPORTS[filter].color,
-              transform: filterOpen ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.18s ease',
-            }}
+      <div className="map-hud-top">
+        <div className="map-wordmark" aria-label="MATCHPOINT">MATCHPOINT</div>
+
+        <div className="map-summary-row">
+          <div className="map-summary-card">
+            <button className="player-summary" onClick={() => nav('/profile')} aria-label="내 프로필 열기">
+              <span className="player-summary__avatar" aria-hidden="true">
+                <img src="/map/player-dino.webp" alt="" />
+              </span>
+              <span className="player-summary__identity">
+                <strong>{me.nickname}</strong>
+                <span className="mono" style={{ color: playerTier.color }}>
+                  {playerTier.name} {me.elo[sport]}
+                </span>
+              </span>
+            </button>
+
+            <div className="summary-divider" />
+
+            <div className="local-champion" aria-label={`${REGION} ${SPORTS[sport].label} 1위`}>
+              <span className="local-champion__crown" aria-hidden="true">♛</span>
+              <span>
+                <strong>{REGION} {SPORTS[sport].label} 1위</strong>
+                <span className="mono">ELO {champion.elo[sport]}</span>
+              </span>
+            </div>
+          </div>
+
+          <button
+            className="sport-filter-trigger"
+            onClick={() => setFilterOpen((open) => !open)}
+            aria-label="지도 종목 변경"
+            aria-expanded={filterOpen}
           >
-            ▼
-          </span>
-        </button>
+            <span aria-hidden="true">{SPORTS[sport].emoji}</span>
+            <small>{SPORTS[sport].label}</small>
+          </button>
+        </div>
+
+        <RankTicker sportId={sport} />
       </div>
 
-      {/* 종목별 1위 전광판 */}
-      {!active && <RankTicker />}
-
-      {/* 필터 드롭다운 */}
       {filterOpen && (
         <>
-          <div
-            onClick={() => setFilterOpen(false)}
-            style={{ position: 'absolute', inset: 0, zIndex: 35 }}
-          />
-          <div
-            className="fade-in"
-            style={{
-              position: 'absolute', top: 60, right: 12, width: 172, zIndex: 38,
-              background: '#fff', border: '1px solid var(--line)', borderRadius: 14,
-              boxShadow: '0 12px 28px rgba(18,52,32,0.22)', overflow: 'hidden',
-            }}
-          >
-            {(['all', 'tennis', 'badminton', 'tabletennis', 'basketball'] as const).map((f, i) => {
-              const on = filter === f
-              const s = f === 'all' ? null : SPORTS[f]
-              const rec = f !== 'all' && interests.includes(f)
+          <button className="map-menu-scrim" onClick={() => setFilterOpen(false)} aria-label="종목 메뉴 닫기" />
+          <div className="sport-filter-menu fade-in" role="menu" aria-label="지도 종목">
+            {MAP_SPORTS.map((id) => {
+              const meta = SPORTS[id]
+              const selected = id === sport
               return (
                 <button
-                  key={f}
-                  onClick={() => { setFilter(f); setActiveId(null); setFilterOpen(false) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 9, width: '100%',
-                    padding: '11px 12px',
-                    borderTop: i === 0 ? 'none' : '1px solid var(--line)',
-                    background: on ? (s ? `${s.color}16` : 'var(--court-soft)') : 'transparent',
-                    color: on ? (s?.color ?? 'var(--court)') : 'var(--text)',
-                    fontWeight: on ? 800 : 600, fontSize: 13,
-                  }}
+                  key={id}
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  className={selected ? 'is-selected' : ''}
+                  onClick={() => selectSport(id)}
                 >
-                  <span style={{ fontSize: 16 }}>{s ? s.emoji : '🏟️'}</span>
-                  <span className="grow" style={{ textAlign: 'left' }}>{s ? s.label : '전체'}</span>
-                  {rec && <span style={{ color: 'var(--gold)', fontSize: 10 }}>★</span>}
-                  {on && <span style={{ fontSize: 12 }}>✓</span>}
+                  <span aria-hidden="true">{meta.emoji}</span>
+                  <span>{meta.label}</span>
+                  {interests.includes(id) && <small>관심 종목</small>}
+                  {selected && <b aria-hidden="true">✓</b>}
                 </button>
               )
             })}
@@ -169,42 +168,29 @@ export default function MapScreen() {
         </>
       )}
 
-      <VenueMap
-        center={coords}
-        me={coords}
-        markers={markers}
-        activeId={activeId}
-        onMarkerClick={(id) => setActiveId(id)}
-        focus={active ? { lat: active.lat, lng: active.lng } : null}
-      />
+      <div className="quick-match-dock">
+        <button className={`quick-match-button ${match ? 'is-active-match' : ''}`} onClick={startMatch}>
+          <span className="quick-match-button__icon" aria-hidden="true">
+            {match ? '⚡' : SPORTS[sport].emoji}
+          </span>
+          <span className="quick-match-button__copy">
+            <strong>
+              {match
+                ? '진행 중인 매칭으로 돌아가기'
+                : active
+                  ? `${active.name}에서 매칭`
+                  : `${SPORTS[sport].label} ${quickMode} 매칭 시작`}
+            </strong>
+            {!match && (
+              <small>
+                {active ? '거점을 한 번 더 누르면 상세 정보' : `주변 ${QUICK_RADIUS_M / 1000}km 빠른 매칭`}
+              </small>
+            )}
+          </span>
+        </button>
+      </div>
 
-      {/* 진행 중인 매칭이 있으면 복귀 배너, 없으면 빠른 매칭 버튼 */}
-      {!active && (
-        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 35 }}>
-          {match ? (
-            <button
-              className="btn gold"
-              style={{ width: '100%' }}
-              onClick={() => nav(activeMatchPath(match.phase))}
-            >
-              ⚡ 진행 중인 매칭으로 돌아가기
-            </button>
-          ) : (
-            <button
-              className="btn primary"
-              style={{ width: '100%', height: 58, fontSize: 16 }}
-              onClick={() => nav('/queue/new?quick=1')}
-            >
-              ⚡ 빠른 매칭 시작
-              <span style={{ fontWeight: 600, opacity: 0.85, fontSize: 12.5 }}>
-                · 주변 {QUICK_RADIUS_M / 1000}km 플레이어와 매칭
-              </span>
-            </button>
-          )}
-        </div>
-      )}
-
-      {active && <VenueSheet venue={active} onClose={() => setActiveId(null)} />}
-    </>
+      {detailVenue && <VenueSheet venue={detailVenue} onClose={() => setDetailId(null)} />}
+    </main>
   )
 }

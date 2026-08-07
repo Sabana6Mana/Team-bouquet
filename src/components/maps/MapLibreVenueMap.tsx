@@ -9,7 +9,7 @@ const BUILDING_LAYER_ID = 'matchpoint-3d-buildings'
 const ROUTE_SOURCE_ID = 'matchpoint-route'
 const ROUTE_GLOW_LAYER_ID = 'matchpoint-route-glow'
 const ROUTE_DASH_LAYER_ID = 'matchpoint-route-dash'
-const BASE_ZOOM = 15.55
+const BASE_ZOOM = 14.85
 const BASE_PITCH = 58
 const BASE_BEARING = -18
 
@@ -235,6 +235,7 @@ export default function MapLibreVenueMap({
     }
 
     mapRef.current = map
+    map.setPadding({ top: 145, right: 28, bottom: 92, left: 28 })
     map.dragRotate.disable()
     map.touchZoomRotate.disableRotation()
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left')

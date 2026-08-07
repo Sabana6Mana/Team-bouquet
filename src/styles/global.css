@@ -733,10 +733,256 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
 }
 
+/* ───────────── 메인 지도 HUD ───────────── */
+
+.map-screen {
+  position: relative;
+  isolation: isolate;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #edf4f7;
+}
+.map-hud-top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 30;
+  height: 158px;
+  padding: 0 14px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(245, 249, 252, 0.97) 0%, rgba(245, 249, 252, 0.72) 70%, transparent 100%);
+}
+.map-wordmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7px;
+  color: #121719;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.9px;
+  text-align: center;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.88);
+}
+.map-summary-row {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 36px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 66px;
+  pointer-events: auto;
+}
+.map-summary-card {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(112px, 0.92fr);
+  align-items: center;
+  border: 1px solid rgba(207, 218, 224, 0.92);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 7px 20px rgba(51, 71, 81, 0.17);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+.player-summary {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  text-align: left;
+}
+.player-summary__avatar {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dce6df;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fbf9, #e7f1e9);
+  overflow: hidden;
+}
+.player-summary__avatar img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  transform: translateY(2px);
+}
+.player-summary__identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.player-summary__identity strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-summary__identity .mono {
+  font-size: 10px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.summary-divider {
+  width: 1px;
+  height: 36px;
+  background: #dfe7e2;
+}
+.local-champion {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+}
+.local-champion__crown {
+  flex-shrink: 0;
+  color: #eaaa00;
+  font-size: 28px;
+  line-height: 1;
+  text-shadow: 0 2px 0 #fff1a6, 0 0 9px rgba(234, 170, 0, 0.35);
+}
+.local-champion > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.local-champion strong {
+  overflow: hidden;
+  font-size: 10.5px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.local-champion .mono {
+  color: var(--court);
+  font-size: 11px;
+  font-weight: 900;
+}
+.sport-filter-trigger {
+  flex: 0 0 62px;
+  width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid rgba(207, 218, 224, 0.92);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 7px 20px rgba(51, 71, 81, 0.17);
+  backdrop-filter: blur(16px);
+}
+.sport-filter-trigger > span { font-size: 23px; line-height: 1; }
+.sport-filter-trigger small { color: var(--muted); font-size: 8px; font-weight: 850; }
+.map-menu-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 39;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+.sport-filter-menu {
+  position: absolute;
+  top: 108px;
+  right: 14px;
+  z-index: 40;
+  width: 184px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 16px 34px rgba(18, 52, 32, 0.24);
+  backdrop-filter: blur(18px);
+}
+.sport-filter-menu > button {
+  width: 100%;
+  min-height: 47px;
+  display: grid;
+  grid-template-columns: 25px 1fr auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.sport-filter-menu > button:first-child { border-top: 0; }
+.sport-filter-menu > button.is-selected { color: var(--court); background: var(--court-soft); }
+.sport-filter-menu > button small { color: var(--gold); font-size: 8px; font-weight: 800; }
+.sport-filter-menu > button b { font-size: 11px; }
+.quick-match-dock {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 30;
+  pointer-events: none;
+}
+.quick-match-button {
+  width: 100%;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 18px;
+  border: 2px solid #30df7a;
+  border-radius: 17px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(39, 231, 123, 0.32), transparent 45%),
+    linear-gradient(180deg, #087b39 0%, #045b2a 100%);
+  box-shadow:
+    0 0 0 3px rgba(25, 195, 93, 0.17),
+    0 9px 25px rgba(4, 83, 39, 0.38),
+    inset 0 0 18px rgba(39, 236, 121, 0.2);
+  text-align: left;
+  pointer-events: auto;
+}
+.quick-match-button.is-active-match {
+  border-color: #f7be32;
+  color: #2d230c;
+  background: linear-gradient(135deg, #f6bd32, #ff9f1f);
+  box-shadow: 0 9px 25px rgba(200, 126, 16, 0.35);
+}
+.quick-match-button__icon { flex-shrink: 0; font-size: 25px; line-height: 1; }
+.quick-match-button__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.quick-match-button__copy strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-match-button__copy small { font-size: 9.5px; font-weight: 700; opacity: 0.76; }
+
 /* ───────────── LED 전광판 티커 ───────────── */
 
 .ticker {
-  position: absolute; left: 12px; right: 12px; top: 62px; z-index: 33;
+  position: absolute; left: 14px; right: 14px; top: 110px; z-index: 33;
   height: 38px; border-radius: 9px; overflow: hidden;
   background: linear-gradient(180deg, #0e2b1a 0%, #071510 100%);
   border: 1px solid rgba(120, 220, 150, 0.35);
@@ -773,6 +1019,13 @@ a { color: inherit; text-decoration: none; }
   font-size: 13px; font-weight: 800; letter-spacing: 0.3px;
   border-right: 1px dashed rgba(120, 220, 150, 0.22);
 }
+.ticker-focus { min-width: 430px; justify-content: center; }
+.ticker-chevron {
+  color: #23dc72;
+  font-size: 17px;
+  letter-spacing: -4px;
+  text-shadow: 0 0 9px rgba(35, 220, 114, 0.78);
+}
 .ticker-sport { color: #6fdc95; text-shadow: 0 0 8px rgba(111, 220, 149, 0.65); }
 .ticker-crown { font-size: 12px; }
 
@@ -808,6 +1061,28 @@ a { color: inherit; text-decoration: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .ticker-track { animation: none; }
+}
+
+@media (max-width: 390px) {
+  .map-hud-top { padding: 0 10px; }
+  .map-summary-row { left: 10px; right: 10px; }
+  .map-summary-card { grid-template-columns: minmax(0, 1fr) 1px minmax(102px, 0.82fr); }
+  .player-summary__avatar { flex-basis: 42px; width: 42px; height: 42px; }
+  .player-summary__avatar img { width: 46px; height: 46px; }
+  .local-champion__crown { font-size: 23px; }
+  .local-champion strong { font-size: 9.5px; }
+  .sport-filter-trigger { flex-basis: 56px; width: 56px; }
+  .ticker { left: 10px; right: 10px; }
+}
+
+@media (max-height: 720px) {
+  .map-hud-top { height: 122px; }
+  .map-wordmark { display: none; }
+  .map-summary-row { top: 8px; height: 60px; }
+  .ticker { top: 76px; }
+  .sport-filter-menu { top: 72px; }
+  .quick-match-button { min-height: 56px; }
+  .quick-match-button__copy small { display: none; }
 }
 
 /* ───────────── 지도 위 체육관 팝업 (게임 HUD) ───────────── */

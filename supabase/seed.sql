@@ -1,14 +1,14 @@
 -- Existing frontend venue fixtures, plus rolling local-development slots.
 insert into public.venues (id, name, sports, lat, lng, address, price_per_hour)
 values
-  ('v1', '잠실 국민체육센터', array['badminton', 'tabletennis', 'basketball']::public.sport_code[], 37.5188, 127.1012, '서울 송파구 올림픽로 240', 24000),
-  ('v2', '잠실한강공원 테니스장', array['tennis']::public.sport_code[], 37.5171, 127.0966, '서울 송파구 한가람로 65', 40000),
-  ('v3', '신천 배드민턴 클럽', array['badminton']::public.sport_code[], 37.5148, 127.1043, '서울 송파구 백제고분로 362', 28000),
-  ('v4', '성내천 탁구장', array['tabletennis']::public.sport_code[], 37.5272, 127.1152, '서울 송파구 성내천로 200', 16000),
-  ('v5', '올림픽공원 실내 농구장', array['basketball']::public.sport_code[], 37.5215, 127.1198, '서울 송파구 올림픽로 424', 36000),
-  ('v6', '아시아공원 시민 체육관', array['tennis', 'basketball']::public.sport_code[], 37.5132, 127.1082, '서울 송파구 오금로 62', 20000),
-  ('v7', '잠실 스포츠플렉스', array['badminton', 'tabletennis', 'tennis']::public.sport_code[], 37.5243, 127.0998, '서울 송파구 올림픽로 269', 32000),
-  ('v8', '몽촌토성 커뮤니티 체육관', array['basketball', 'badminton']::public.sport_code[], 37.5192, 127.1145, '서울 송파구 위례성대로 51', 22000)
+  ('v1', '대치체육센터', array['badminton', 'tabletennis', 'basketball']::public.sport_code[], 37.4999, 127.0581, '서울 강남구 대치동', 24000),
+  ('v2', '테헤란 테니스파크', array['tennis']::public.sport_code[], 37.5064, 127.0436, '서울 강남구 역삼동', 40000),
+  ('v3', '역삼 배드민턴센터', array['badminton']::public.sport_code[], 37.5011, 127.0374, '서울 강남구 역삼동', 28000),
+  ('v4', '선릉 탁구아레나', array['tabletennis']::public.sport_code[], 37.5048, 127.0486, '서울 강남구 삼성동', 16000),
+  ('v5', '삼성 코트하우스', array['basketball']::public.sport_code[], 37.5112, 127.0567, '서울 강남구 삼성동', 36000),
+  ('v6', '도곡 시민체육관', array['tennis', 'basketball']::public.sport_code[], 37.4887, 127.0450, '서울 강남구 도곡동', 20000),
+  ('v7', '강남 스포츠플렉스', array['badminton', 'tabletennis', 'tennis']::public.sport_code[], 37.5089, 127.0396, '서울 강남구 논현동', 32000),
+  ('v8', '대청 커뮤니티체육관', array['basketball', 'badminton']::public.sport_code[], 37.4934, 127.0610, '서울 강남구 일원동', 22000)
 on conflict (id) do update set
   name = excluded.name,
   sports = excluded.sports,

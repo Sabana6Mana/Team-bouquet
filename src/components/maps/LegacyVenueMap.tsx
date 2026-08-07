@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import crosshairUrl from '../../../models/crosshair.png'
+import { HOME } from '../../data/seed'
 import type { MapMarker, VenueMapProps as Props } from './types'
 
 const KEY_ID = (import.meta.env.VITE_NAVER_MAP_KEY_ID as string | undefined)?.trim()
@@ -439,7 +440,7 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
 
 /** HOME 주변에 도로/블록/공원을 위경도 공간에 만들어 두고 투영해 그린다. */
 const GRID = (() => {
-  const base = { lat: 37.5206, lng: 127.1035 }
+  const base = HOME
   const roads: { a: [number, number]; b: [number, number]; w: number }[] = []
   for (let i = -6; i <= 6; i++) {
     const off = i * 0.0042
