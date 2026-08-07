@@ -1,7 +1,22 @@
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
+
+function dotenvFile() {
+  try {
+    const path = fileURLToPath(new URL('../.env.local', import.meta.url))
+    return Object.fromEntries(
+      readFileSync(path, 'utf8').split(/\r?\n/).flatMap((line) => {
+        const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+        return match ? [[match[1], match[2].trim().replace(/^['"]|['"]$/g, '')]] : []
+      }),
+    )
+  } catch {
+    return {}
+  }
+}
 
 function localSupabaseEnv() {
   try {
@@ -23,10 +38,16 @@ function localSupabaseEnv() {
 }
 
 const local = localSupabaseEnv()
-const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || local.API_URL
+const envFile = dotenvFile()
+const url = process.env.VITE_SUPABASE_URL
+  || process.env.SUPABASE_URL
+  || envFile.VITE_SUPABASE_URL
+  || local.API_URL
 const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
   || process.env.VITE_SUPABASE_ANON_KEY
   || process.env.SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_ANON_KEY
   || local.PUBLISHABLE_KEY
   || local.ANON_KEY
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
