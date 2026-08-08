@@ -9,6 +9,7 @@ import {
 } from '../lib/game'
 import { BOT_CHATS, HOME, NPCS, VENUES } from '../data/seed'
 import { backendApi, backendConfig } from '../backend'
+import { forcedDemo, serverMode } from '../lib/forcedDemo'
 
 /** 데모 시뮬레이션용 타이머. 상태에 넣으면 직렬화가 깨지므로 모듈 레벨에서 관리한다. */
 let timers: ReturnType<typeof setTimeout>[] = []
@@ -22,6 +23,16 @@ function clearTimers() {
 
 function uid(prefix = 'id') {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/**
+ * 테스트용 데모 매치가 끝나면 스위치를 내리고 서버 상태를 다시 읽게 한다.
+ * 데모 중이 아니면 아무 일도 하지 않는다.
+ */
+function endForcedDemo(set: (updater: (state: AppState) => Partial<AppState>) => void) {
+  if (!forcedDemo.active) return
+  forcedDemo.disable()
+  set((state) => ({ testMatch: false, backendRefreshVersion: state.backendRefreshVersion + 1 }))
 }
 
 /**
@@ -68,6 +79,12 @@ interface AppState {
   backendSlotIds: Record<number, string>
   /** RPC 성공 뒤 BackendProvider에 즉시 재조회를 요청하는 증가값 */
   backendRefreshVersion: number
+  /**
+   * 화면 확인용 데모 매치가 도는 중인지.
+   * 화면들이 서버 흐름 대신 데모 흐름을 그리도록 이 값을 본다.
+   * (같은 상태를 forcedDemo 모듈이 React 밖에서도 읽는다.)
+   */
+  testMatch: boolean
 
   signUp: (a: Omit<Account, 'interests'>) => void
   setInterests: (ids: SportId[]) => void
@@ -75,6 +92,11 @@ interface AppState {
 
   /** venueId가 null이면 빠른 매칭 — 인원이 모인 뒤 반경 안에서 장소를 배정한다. */
   startQueue: (venueId: string | null, sport: SportId, mode: MatchMode) => string
+  /**
+   * 화면 확인용. 서버를 거치지 않고 NPC 로 채우는 데모 매치를 강제로 시작한다.
+   * 진행 중이던 매치가 있어도 밀어내고 새로 연다.
+   */
+  forceDemoMatch: (sport: SportId, mode: MatchMode) => void
   cancelMatch: () => void
   /** slot은 encodeSlot(날짜 offset, 시각) 으로 인코딩된 값 */
   vote: (slot: number) => void
@@ -113,6 +135,7 @@ export const useApp = create<AppState>()(
       backendError: null,
       backendSlotIds: {},
       backendRefreshVersion: 0,
+      testMatch: false,
 
       signUp: (a) => {
         const me: Player = {
@@ -135,7 +158,7 @@ export const useApp = create<AppState>()(
       startQueue: (venueId, sport, mode) => {
         clearTimers()
         const previousMatch = get().match
-        if (backendConfig.configured && previousMatch) {
+        if (serverMode() && previousMatch) {
           get().notify('진행 중인 매치가 있어요', '현재 매치를 먼저 완료하거나 취소해 주세요.')
           set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
           return previousMatch.id
@@ -167,7 +190,7 @@ export const useApp = create<AppState>()(
         }
         set({ match })
 
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.queue.join({
             venueId,
             sport,
@@ -241,9 +264,21 @@ export const useApp = create<AppState>()(
         return id
       },
 
+      forceDemoMatch: (sport, mode) => {
+        clearTimers()
+        forcedDemo.enable()
+        // 서버 큐에 남아 있던 참가 기록은 정리해 둔다.
+        // 실패하더라도 테스트 매치는 로컬에서 도니 막지 않는다.
+        if (backendConfig.configured) void backendApi.queue.cancel().catch(() => {})
+        set({ match: null, backendError: null, testMatch: true })
+        // 장소를 비워 두면 인원이 찼을 때 주변 체육관이 배정된다(빠른 매칭과 같은 경로).
+        get().startQueue(null, sport, mode)
+        get().notify('테스트 매칭 시작', '서버 대신 NPC로 채우는 데모 매치입니다.', '/queue')
+      },
+
       cancelMatch: () => {
         clearTimers()
-        if (backendConfig.configured) {
+        if (serverMode()) {
           const matchId = get().match?.id
           void backendApi.queue.cancel().then((cancelled) => {
             set((state) => ({
@@ -263,6 +298,7 @@ export const useApp = create<AppState>()(
           return
         }
         set({ match: null })
+        endForcedDemo(set)
       },
 
       /* ─────────────── 일정 조율 ─────────────── */
@@ -273,7 +309,7 @@ export const useApp = create<AppState>()(
         const votes = { ...m.votes, [get().me.id]: slot }
         set({ match: { ...m, votes } })
 
-        if (backendConfig.configured) {
+        if (serverMode()) {
           const venueSlotId = get().backendSlotIds[slot]
           if (!venueSlotId) {
             const message = '서버의 예약 가능 시간과 연결되지 않은 슬롯입니다. 새로고침 후 다시 시도해 주세요.'
@@ -343,7 +379,7 @@ export const useApp = create<AppState>()(
             chat: [...m.chat, { id: uid('c'), playerId: get().me.id, at: Date.now(), text: text.trim() }],
           },
         })
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.messages.send(m.id, text).then(() => {
             set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
           }).catch((error: unknown) => {
@@ -359,7 +395,7 @@ export const useApp = create<AppState>()(
       setTeams: (a, b) => {
         const m = get().match
         if (!m) return
-        if (backendConfig.configured) {
+        if (serverMode()) {
           if (m.hostId !== get().me.id) {
             get().notify('호스트만 팀을 바꿀 수 있어요', '호스트의 팀 확정을 기다려 주세요.')
             set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
@@ -390,7 +426,7 @@ export const useApp = create<AppState>()(
         if (!m || m.phase !== 'teaming') return
         const half = m.capacity / 2
         if (m.teams.a.length !== half || m.teams.b.length !== half) return
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.matches.setReady(m.id, ready).then(() => {
             set((state) => ({
               backendError: null,
@@ -414,7 +450,7 @@ export const useApp = create<AppState>()(
       advanceToPayment: () => {
         const m = get().match
         if (!m || m.phase !== 'teaming') return
-        if (backendConfig.configured) {
+        if (serverMode()) {
           set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
           return
         }
@@ -434,7 +470,7 @@ export const useApp = create<AppState>()(
         const m = get().match
         if (!m || m.reports[playerId]) return
         set({ match: { ...m, reports: { ...m.reports, [playerId]: reason } } })
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.reports.create({
             reportedId: playerId,
             matchId: m.id,
@@ -477,7 +513,7 @@ export const useApp = create<AppState>()(
         const payments = { ...m.payments, [meId]: true }
         set({ match: { ...m, payments } })
 
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.matches.confirmAttendance(m.id).then(() => {
             set((state) => ({
               backendError: null,
@@ -533,7 +569,7 @@ export const useApp = create<AppState>()(
         const votes = { ...m.resultVotes, [meId]: winner }
         set({ match: { ...m, resultVotes: votes } })
 
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.votes.result(m.id, winner).then(() => {
             set((state) => ({
               backendError: null,
@@ -576,7 +612,7 @@ export const useApp = create<AppState>()(
       finalizeResult: (winner) => {
         const m = get().match
         if (!m || m.result) return
-        if (backendConfig.configured) return
+        if (serverMode()) return
         const sport = m.sport
         const meId = get().me.id
         const myTeam = m.teams.a.includes(meId) ? 'a' : 'b'
@@ -607,7 +643,7 @@ export const useApp = create<AppState>()(
       giveSticker: (playerId) => {
         const m = get().match
         if (!m || m.stickersGiven.includes(playerId)) return
-        if (backendConfig.configured) {
+        if (serverMode()) {
           get().notify('칭찬 기능 준비 중', '실사용자 칭찬 스티커는 다음 MVP 단계에서 저장됩니다.')
           return
         }
@@ -636,7 +672,7 @@ export const useApp = create<AppState>()(
           eloDelta: delta,
         }
         clearTimers()
-        if (backendConfig.configured) {
+        if (serverMode()) {
           void backendApi.matches.complete(m.id).then(() => {
             clearTimers()
             set((state) => ({
@@ -658,12 +694,13 @@ export const useApp = create<AppState>()(
           return
         }
         set({ history: [record, ...get().history], match: null })
+        endForcedDemo(set)
       },
 
       openReporting: () => {
         const m = get().match
         if (!m) return
-        if (!backendConfig.configured) {
+        if (!serverMode()) {
           set({ match: { ...m, phase: 'reporting' } })
           return
         }
@@ -695,10 +732,11 @@ export const useApp = create<AppState>()(
 
       reset: () => {
         clearTimers()
+        forcedDemo.disable()
         set({
           account: null, me: emptyMe(), match: null, history: [],
           notifications: [], toast: null, clanId: null, coords: HOME,
-          backendSlotIds: {}, backendError: null,
+          backendSlotIds: {}, backendError: null, testMatch: false,
         })
       },
     }),

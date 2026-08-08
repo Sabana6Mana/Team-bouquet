@@ -20,6 +20,12 @@ export interface MapMarker {
   elo: number
   /** 선택 종목·지역 기준 가장 높은 거점 */
   crowned: boolean
+  /**
+   * 전체 거점 목록에서의 고정 자리 번호.
+   * 3D 건물을 돌아가며 배정할 때 쓴다. 종목 필터로 목록이 줄어도
+   * 번호가 그대로라 체육관 건물이 바뀌지 않는다.
+   */
+  seat: number
 }
 
 export interface VenueMapProps {

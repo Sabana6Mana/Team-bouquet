@@ -302,34 +302,7 @@ a { color: inherit; text-decoration: none; }
   user-select: none;
   -webkit-user-drag: none;
 }
-.venue-platform {
-  position: absolute;
-  left: 50%;
-  bottom: 6px;
-  width: 114px;
-  height: 32px;
-  transform: translateX(-50%);
-  border: 2px solid currentColor;
-  border-radius: 50%;
-  background: color-mix(in srgb, currentColor 18%, rgba(255, 255, 255, 0.72));
-  box-shadow:
-    0 0 0 5px color-mix(in srgb, currentColor 12%, transparent),
-    0 0 22px color-mix(in srgb, currentColor 58%, transparent);
-  transition: width 0.2s ease, opacity 0.2s ease;
-}
-.venue-beam {
-  position: absolute;
-  left: 50%;
-  bottom: 25px;
-  width: 28px;
-  height: 170px;
-  transform: translateX(-50%);
-  opacity: 0.48;
-  pointer-events: none;
-  background: linear-gradient(to top, currentColor 0%, color-mix(in srgb, currentColor 26%, transparent) 48%, transparent 100%);
-  clip-path: polygon(38% 100%, 62% 100%, 100% 0, 0 0);
-  filter: blur(5px) drop-shadow(0 0 8px currentColor);
-}
+/* 거점의 빛기둥과 바닥 원은 three.js 3D 레이어가 그린다. */
 .venue-building {
   position: absolute;
   left: 50%;
@@ -428,8 +401,6 @@ a { color: inherit; text-decoration: none; }
   transform: translateX(-50%) scale(1.08);
   filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
 }
-.venue-entity.is-selected .venue-platform { width: 128px; }
-.venue-entity.is-selected .venue-beam { opacity: 0.85; animation: venueBeam 1.9s ease-in-out infinite; }
 .venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
 .venue-entity.is-crowned .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 .venue-entity.is-hot:not(.is-selected)::after {
@@ -441,11 +412,6 @@ a { color: inherit; text-decoration: none; }
   font-size: 10px;
   text-shadow: 0 0 9px #ff6b39;
 }
-@keyframes venueBeam {
-  0%, 100% { filter: blur(5px) drop-shadow(0 0 6px currentColor); }
-  50% { filter: blur(4px) drop-shadow(0 0 15px currentColor); }
-}
-
 .player-map-marker {
   position: relative;
   width: 104px;
@@ -528,6 +494,27 @@ a { color: inherit; text-decoration: none; }
 .location-reticle::before { left: 8px; top: -6px; width: 2px; height: 30px; }
 .location-reticle::after { left: -6px; top: 8px; width: 30px; height: 2px; }
 
+/* 화면 확인용 테스트 버튼. 진짜 기능과 헷갈리지 않게 점선 테두리를 쓴다. */
+.map-test-button {
+  position: absolute;
+  left: 14px;
+  bottom: 92px;
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px dashed rgba(120, 141, 130, 0.9);
+  border-radius: 999px;
+  color: #4c6357;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(18, 52, 32, 0.14);
+  backdrop-filter: blur(14px);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 @media (max-height: 720px) {
   .venue-entity { transform-origin: bottom; }
   .venue-building { width: 116px; height: 116px; }
@@ -535,7 +522,6 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .venue-entity.is-selected .venue-beam,
   .player-platform { animation: none; }
 }
 
@@ -723,7 +709,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--line);
   border-radius: 22px 22px 0 0;
   z-index: 51;
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUp 0.44s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 -16px 40px rgba(18, 52, 32, 0.2);
 }
 @keyframes slideUp { from { transform: translateY(100%) } }
@@ -1159,9 +1145,804 @@ a { color: inherit; text-decoration: none; }
   background: var(--bg);
   z-index: 60;
   display: flex; flex-direction: column;
-  animation: slideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideIn 0.46s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes slideIn { from { transform: translateX(100%) } }
+
+/* ───────── 매칭 무대 (경기장 배경 + 위아래로 마주 선 선수들) ───────── */
+
+/* 코트 모델이 흰 바탕 위에 떠 보이도록 배경을 비운다. */
+.arena { background: #ffffff; }
+
+/* 멀찍이서 천천히 도는 코트. 배경이라 조작을 받지 않는다. */
+.court-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.55;
+  pointer-events: none;
+  /* 코트를 키운 만큼 가장자리 페이드도 넓혀 잘려 보이지 않게 한다. */
+  -webkit-mask-image: radial-gradient(130% 86% at 50% 44%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(130% 86% at 50% 44%, #000 40%, transparent 100%);
+}
+.court-stage canvas { display: block; }
+/* 등장 연출 동안에는 코트가 주인공이라 흐림 없이 또렷하게 둔다. */
+.court-stage { transition: opacity 0.7s ease; }
+.arena:not(.is-staged) .court-stage { opacity: 1; }
+
+/* 무대 위 요소는 모두 코트보다 앞에 둔다. */
+.arena > .topbar,
+.arena > .arena-stage,
+.arena > .arena-dock {
+  position: relative;
+  z-index: 1;
+}
+.arena > .topbar {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.arena-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 선수 줄. 위는 상대, 아래는 우리 팀.
+   좌우로 조금씩 어긋나게 두어 코트 안에 서 있는 원근감을 준다. */
+.arena-row {
+  flex-shrink: 0;
+  display: flex;
+  gap: 14px;
+  padding: 6px 22px;
+}
+.arena-row.is-away {
+  justify-content: flex-end;
+  /* 안쪽(먼 곳)에 선 팀이라 조금 작게 보인다. */
+  font-size: 0.88em;
+  opacity: 0.94;
+}
+.arena-row.is-home { justify-content: flex-start; }
+
+.arena-player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.arena-player__avatar {
+  display: grid;
+  place-items: center;
+  width: 3.4em;
+  height: 3.4em;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(18, 52, 32, 0.16);
+  font-size: 1.7em;
+  line-height: 1;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.arena-player__name {
+  max-width: 4.6em;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.65em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 시간 투표를 마친 선수는 테두리에 불이 들어온다. */
+.arena-player.is-voted .arena-player__avatar {
+  border-color: var(--court-2);
+  box-shadow: 0 6px 14px rgba(18, 52, 32, 0.16), 0 0 0 4px rgba(70, 160, 92, 0.18);
+}
+.arena-player.is-voted .arena-player__name { color: var(--court); }
+
+/* 말풍선. 우리 팀은 머리 위, 상대는 발밑에 떠서 상단바를 가리지 않는다. */
+.arena-bubble {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  z-index: 3;
+  /* 기준 상자가 아바타 한 칸이라 그대로 두면 폭이 40px 남짓으로 눌려
+     글자가 한 줄에 하나씩 세로로 쌓인다. 내용 크기로 잡고 최대만 막는다. */
+  width: max-content;
+  max-width: 150px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(18, 52, 32, 0.18);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.arena-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  border: inherit;
+  border-top: 0;
+  border-left: 0;
+  background: inherit;
+  transform: translate(-50%, -55%) rotate(45deg);
+}
+.arena-row.is-away .arena-bubble {
+  bottom: auto;
+  top: calc(100% + 7px);
+}
+.arena-row.is-away .arena-bubble::after {
+  top: auto;
+  bottom: 100%;
+  transform: translate(-50%, 55%) rotate(225deg);
+}
+
+/* 가운데 선택 창 */
+.arena-panel {
+  flex: 1;
+  min-height: 0;
+  margin: 4px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(214, 230, 218, 0.9);
+  border-radius: 18px;
+  /* 뒤에서 도는 코트가 어렴풋이 비치는 정도. 읽는 데 방해되면 안 된다. */
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 14px 34px rgba(18, 52, 32, 0.12);
+}
+.arena-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 채팅 로그 — 입력줄 위로 펼쳐진다. */
+.arena-log-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgba(18, 52, 32, 0.18);
+}
+.arena-log {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 76px;
+  z-index: 3;
+  max-height: 52%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 -8px 34px rgba(18, 52, 32, 0.2);
+  overflow: hidden;
+}
+.arena-log__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.arena-log__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px;
+}
+
+.arena-log-toggle {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  font-size: 19px;
+  line-height: 1;
+}
+.arena-log-toggle.is-open {
+  border-color: var(--court);
+  background: var(--court-soft);
+}
+
+.arena-dock {
+  flex-shrink: 0;
+  z-index: 4;
+  padding: 10px 14px calc(12px + var(--safe-bottom));
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+/* 가로로 돌리라는 안내. 잠깐 떴다가 스스로 사라진다. */
+.arena-rotate-hint {
+  position: absolute;
+  top: 62px;
+  left: 50%;
+  z-index: 5;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 16px rgba(18, 52, 32, 0.16);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: arenaHintOut 0.5s ease 6s forwards;
+}
+@keyframes arenaHintOut { to { opacity: 0; visibility: hidden; } }
+
+/* ───────── 매칭 성사 등장 연출 ───────── */
+
+/* 코트가 코앞까지 다가온 동안 화면 가운데를 덮는 문구. */
+.arena-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  pointer-events: none;
+}
+/* 세 줄이 1초 간격으로 하나씩 뜬다. backwards 라 차례가 오기 전에는 숨어 있다. */
+.arena-hero__sub {
+  padding: 5px 16px;
+  border-radius: 999px;
+  background: var(--court);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  animation: heroSub 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+}
+.arena-hero__title {
+  color: var(--court-deep);
+  font-size: clamp(30px, 8vw, 58px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-shadow: 0 4px 0 #fff, 0 10px 26px rgba(18, 52, 32, 0.32);
+  animation: heroTitle 0.62s cubic-bezier(0.16, 1.7, 0.4, 1) 1s backwards;
+}
+.arena-hero__where {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  animation: heroSub 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 2s backwards;
+}
+/* 문구가 커지면서 사라지고, 그 사이 코트가 제자리로 물러난다. */
+.arena-hero.is-leaving {
+  animation: heroOut 0.6s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
+}
+@keyframes heroSub { from { opacity: 0; scale: 0.7; } }
+@keyframes heroTitle { from { opacity: 0; scale: 0.55; translate: 0 14px; } }
+@keyframes heroOut { to { opacity: 0; scale: 1.35; } }
+
+/* 연출이 끝나면 무대 요소들이 차례로 튀어나온다.
+   backwards 로 두어 지연 중에는 시작 상태(안 보임)에 머문다. */
+.arena:not(.is-staged) .arena-stage,
+.arena:not(.is-staged) .arena-dock,
+.arena:not(.is-staged) .topbar,
+.arena:not(.is-staged) .wide-grid,
+.arena:not(.is-staged) .wide-back,
+.arena:not(.is-staged) .wide-actions,
+.arena:not(.is-staged) .wide-chat-toggle { opacity: 0; }
+
+/* 팀 이름표가 먼저 자리를 잡는다. */
+.arena.is-staged .team-tag {
+  animation: popIn 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
+}
+/* 캐릭터는 한 명씩 순서대로. 지연 시간은 인원수에 맞춰 JS 가 넣어 준다. */
+.arena.is-staged .stage-player,
+.arena.is-staged .arena-player {
+  animation: popIn 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
+}
+/* 선택 창과 조작 버튼은 캐릭터가 다 나온 뒤에 따라 나온다. */
+.arena.is-staged .arena-panel,
+.arena.is-staged .wide-panel {
+  animation: popIn 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) 3s backwards;
+}
+.arena.is-staged .topbar,
+.arena.is-staged .arena-dock,
+.arena.is-staged .wide-back,
+.arena.is-staged .wide-actions,
+.arena.is-staged .wide-chat-toggle {
+  animation: popIn 0.46s cubic-bezier(0.2, 1.4, 0.4, 1) 3.2s backwards;
+}
+@keyframes popIn { from { opacity: 0; scale: 0.82; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .arena.is-staged .team-tag,
+  .arena.is-staged .stage-player,
+  .arena.is-staged .arena-player,
+  .arena.is-staged .arena-panel,
+  .arena.is-staged .wide-panel,
+  .arena.is-staged .topbar,
+  .arena.is-staged .arena-dock,
+  .arena.is-staged .wide-back,
+  .arena.is-staged .wide-actions,
+  .arena.is-staged .wide-chat-toggle { animation: none; }
+}
+
+/* ═════════ 가로 화면: 대치 구도 ═════════
+   세로와 구조가 아예 다르다. RoomScreen 이 방향을 보고 다른 화면을 그리고,
+   여기서는 그 가로 전용 화면의 모양만 정한다. */
+
+@media (orientation: landscape) {
+  /* 매칭 화면일 때만 휴대폰 폭 제한을 푼다.
+     (.shell 보다 명시도가 높아 데스크톱의 고정 폭도 함께 눌러쓴다) */
+  body.arena-wide .shell {
+    width: 100%;
+    max-width: 1180px;
+  }
+}
+@media (orientation: landscape) and (min-width: 900px) {
+  /* 데스크톱 액자를 가로 무대 비율로 바꾼다. */
+  body.arena-wide .shell { height: min(680px, 94dvh); }
+}
+
+.arena--wide {
+  display: block;
+  padding: 8px 10px 10px;
+}
+/* 가로에서는 코트가 화면의 주인공이다. 세로보다 훨씬 또렷하게 깔고
+   가장자리 페이드도 늦춰 코트 전체가 드러나게 한다. */
+.arena--wide .court-stage {
+  opacity: 0.92;
+  -webkit-mask-image: radial-gradient(145% 105% at 50% 48%, #000 66%, transparent 100%);
+  mask-image: radial-gradient(145% 105% at 50% 48%, #000 66%, transparent 100%);
+}
+.wide-back {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* 왼쪽 선수 · 가운데 창 · 오른쪽 선수+채팅 */
+.wide-grid {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(170px, 224px) minmax(0, 1fr) minmax(196px, 258px);
+  /* 행 높이를 무대 높이에 못 박는다. auto 로 두면 채팅이 쌓일수록
+     칸이 늘어나 화면 전체가 위로 밀려 올라간다. */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+}
+.wide-side {
+  position: relative;
+  min-width: 0;
+  /* 그리드 칸은 기본이 min-height:auto 라 내용이 넘치면 칸을 밀어낸다. */
+  min-height: 0;
+  /* 말풍선이 가운데 창 위로 떠야 한다. */
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wide-side.is-blue { --team: #2f6fd0; --team-soft: rgba(47, 111, 208, 0.16); }
+.wide-side.is-red { --team: #cf4040; --team-soft: rgba(207, 64, 64, 0.16); }
+
+/* 팀 이름표 */
+.team-tag {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 5px 14px;
+  border: 1px solid var(--team);
+  border-radius: 999px;
+  background: var(--team-soft);
+  color: var(--team);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+/* ── 무대에 선 캐릭터 ── */
+
+.wide-cast {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 위아래로 고르게 벌려 캐릭터마다 말풍선 자리가 남게 한다. */
+  justify-content: space-around;
+  /* 위쪽은 맨 위 캐릭터의 말풍선 자리, 아래쪽은 떠 있는 조작 버튼 자리. */
+  padding: 28px 0 52px;
+}
+.stage-player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.stage-player__stand {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(var(--figure) * 1.15);
+  height: calc(var(--figure) * 1.1);
+  padding: 0;
+}
+.stage-player__stand:active .stage-player__body { scale: 0.94; }
+/* 발밑 그림자 겸 발판. 캐릭터가 코트에 서 있는 것처럼 보이게 한다. */
+.stage-player__pad {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  z-index: 0;
+  width: calc(var(--figure) * 0.92);
+  height: calc(var(--figure) * 0.26);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(18, 52, 32, 0.22), rgba(18, 52, 32, 0));
+  transform: translateX(-50%);
+  transition: background 0.25s ease;
+}
+.stage-player__body {
+  position: relative;
+  z-index: 1;
+  margin-bottom: calc(var(--figure) * 0.06);
+  font-size: var(--figure);
+  line-height: 1;
+  filter: drop-shadow(0 6px 6px rgba(18, 52, 32, 0.22));
+  animation: stageIdle 3.4s ease-in-out infinite;
+}
+/* 서로 마주 보게 왼쪽 팀만 뒤집는다. 이모지 동물은 대개 왼쪽을 본다. */
+.wide-cast.is-home .stage-player__body { transform: scaleX(-1); }
+/* 같은 팀이 나란히 서면 숨쉬는 박자를 어긋나게 해 인형처럼 보이지 않게 한다. */
+.stage-player:nth-child(2) .stage-player__body { animation-delay: -1.1s; }
+.stage-player:nth-child(3) .stage-player__body { animation-delay: -2.2s; }
+@keyframes stageIdle {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -4%; }
+}
+.stage-player__name {
+  max-width: 88px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 시간 투표를 마치면 발판에 팀 색 불이 들어온다. */
+.stage-player.is-voted .stage-player__pad {
+  background: radial-gradient(closest-side, var(--team), transparent);
+  opacity: 0.55;
+}
+.stage-player.is-voted .stage-player__name { color: var(--team); }
+
+/* 말풍선은 캐릭터 머리 위에 뜬다.
+   가장자리 열이라 가운데를 기준으로 펼치면 화면 밖으로 밀려나므로,
+   왼쪽 진영은 왼쪽에, 오른쪽 진영은 오른쪽에 붙여 안쪽으로 자라게 한다. */
+.stage-player .arena-bubble {
+  top: auto;
+  bottom: calc(100% + 4px);
+  z-index: 6;
+  max-width: 190px;
+}
+.stage-player .arena-bubble::after {
+  top: 100%;
+  bottom: auto;
+}
+.wide-cast.is-home .arena-bubble {
+  left: 8px;
+  transform: none;
+}
+.wide-cast.is-home .arena-bubble::after {
+  left: 26px;
+  transform: translate(-50%, -55%) rotate(45deg);
+}
+.wide-cast.is-away .arena-bubble {
+  left: auto;
+  right: 8px;
+  transform: none;
+}
+.wide-cast.is-away .arena-bubble::after {
+  left: auto;
+  right: 18px;
+  transform: translate(50%, -55%) rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-player__body { animation: none; }
+}
+
+/* 가운데 선택 창 */
+.wide-panel {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(214, 230, 218, 0.9);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 16px 40px rgba(18, 52, 32, 0.14);
+}
+.wide-panel__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.wide-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 22px;
+}
+.wide-price {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 12px;
+  border: 1px solid rgba(70, 160, 92, 0.35);
+  border-radius: 11px;
+  background: var(--court-soft);
+}
+.wide-price small { color: var(--muted); font-size: 9.5px; font-weight: 700; }
+.wide-price b { color: var(--court); font-size: 14px; }
+
+.wide-panel__bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 6px;
+}
+.wide-legend { display: flex; gap: 10px; }
+.wide-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.wide-legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.wide-legend i.is-open { background: #eaf6ec; }
+.wide-legend i.is-picked { background: var(--court); border-color: var(--court); }
+.wide-legend i.is-booked { background: #d3dbd6; }
+.wide-legend i.is-past { background: repeating-linear-gradient(45deg, #eef1ef 0 3px, #ffffff 3px 6px); }
+
+/* 날짜 스트립 (가로용 압축) */
+.wide-days {
+  flex-shrink: 0;
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 0 14px 4px;
+}
+.wide-day {
+  flex-shrink: 0;
+  width: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.wide-day.is-on { border-color: var(--court); background: var(--court); color: #fff; }
+
+/* 시간 투표 칸. 세로와 같은 방식이고 가로 폭만큼 열을 늘려 잡는다. */
+.wide-slots {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-content: start;
+  gap: 7px;
+  padding: 8px 14px;
+}
+
+.wide-panel__foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 왼쪽 아래 매칭 조작 */
+.wide-actions {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+}
+.wide-actions .btn {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+/* 오른쪽 아래 채팅 — 버튼으로 열고 닫는다. */
+.wide-chat-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 16px rgba(18, 52, 32, 0.14);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.wide-chat-toggle.is-open {
+  border-color: var(--court);
+  background: var(--court-soft);
+  color: var(--court);
+}
+.wide-chat {
+  position: absolute;
+  right: 12px;
+  bottom: 60px;
+  z-index: 6;
+  width: min(300px, 42%);
+  /* 무대를 덮지 않도록 높이를 못 박는다. 대화가 쌓여도 안에서만 스크롤된다. */
+  height: min(340px, 62%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(18, 52, 32, 0.2);
+}
+.wide-chat__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.wide-chat__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 11px;
+}
+.wide-chat__form {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+}
+.wide-chat__form .field { height: 40px; border-radius: 11px; font-size: 13px; }
+.wide-chat__form .btn { width: 44px; height: 40px; padding: 0; border-radius: 11px; }
+
+/* 선수를 누르면 뜨는 개인 전적 */
+.wide-pop-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: rgba(18, 52, 32, 0.22);
+}
+.wide-pop {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 8;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 20px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(18, 52, 32, 0.28);
+  transform: translate(-50%, -50%);
+}
+.wide-pop__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--dim);
+  font-size: 14px;
+  font-weight: 800;
+}
+.wide-pop__face { font-size: 52px; line-height: 1; }
+.wide-pop__name { font-size: 15px; }
+.wide-pop__tier { font-size: 12px; font-weight: 800; }
+.wide-pop__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+.wide-pop__stats span { display: flex; flex-direction: column; gap: 2px; }
+.wide-pop__stats small { color: var(--dim); font-size: 10px; font-weight: 700; }
+.wide-pop__stats b { font-size: 17px; }
+.wide-pop__foot { margin-top: 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
+
+/* 가로인데 세로가 짧은 실제 휴대폰. 덩치를 한 단계 줄인다. */
+@media (orientation: landscape) and (max-height: 480px) {
+  /* 캐릭터 크기는 --figure 하나로 정해지므로 여기서 한 번만 줄이면 된다. */
+  .wide-cast { --figure: 52px !important; padding-top: 22px; }
+  .wide-panel__icon { display: none; }
+  .wide-slots .slot { height: 48px; }
+  .wide-chat { height: 68%; bottom: 56px; }
+}
 
 .topbar {
   display: flex; align-items: center; gap: 12px;
@@ -1278,7 +2059,7 @@ a { color: inherit; text-decoration: none; }
 }
 @keyframes spin { to { transform: rotate(360deg) } }
 
-.fade-in { animation: fadeUp 0.35s ease backwards; }
+.fade-in { animation: fadeUp 0.5s ease backwards; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px) } }
 
 ::-webkit-scrollbar { width: 0; height: 0; }

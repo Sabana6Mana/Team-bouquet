@@ -187,7 +187,7 @@ export default function MatchSetup() {
               <strong className="mono" style={{ fontSize: 14 }}>{cap}명</strong>
             </div>
             <div className="row spread">
-              <span className="small">{backend.enabled ? '예상 1인 비용' : '예상 더치페이 금액'}</span>
+              <span className="small">{backend.liveMatch ? '예상 1인 비용' : '예상 더치페이 금액'}</span>
               <strong className="mono" style={{ fontSize: 14, color: 'var(--gold)' }}>
                 {venue
                   ? won(Math.round(venue.pricePerHour / cap))
@@ -196,8 +196,8 @@ export default function MatchSetup() {
             </div>
             <p className="small" style={{ fontSize: 11 }}>
               {quick
-                ? `주변 ${QUICK_RADIUS_M / 1000}km 안에서 같은 종목을 고른 플레이어를 찾습니다. 인원이 모이면 알림과 함께 체육관이 배정되고, 시간 조율 후 전원이 ${backend.enabled ? '참가를 확정하면' : '결제하면'} 예약 단계로 넘어갑니다.`
-                : `인원이 모두 모이면 알림을 보내드립니다. 시간 조율 후 전원이 ${backend.enabled ? '참가를 확정하면' : '결제하면'} 예약 단계로 넘어갑니다.`}
+                ? `주변 ${QUICK_RADIUS_M / 1000}km 안에서 같은 종목을 고른 플레이어를 찾습니다. 인원이 모이면 알림과 함께 체육관이 배정되고, 시간 조율 후 전원이 ${backend.liveMatch ? '참가를 확정하면' : '결제하면'} 예약 단계로 넘어갑니다.`
+                : `인원이 모두 모이면 알림을 보내드립니다. 시간 조율 후 전원이 ${backend.liveMatch ? '참가를 확정하면' : '결제하면'} 예약 단계로 넘어갑니다.`}
             </p>
           </div>
         </div>

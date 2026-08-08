@@ -1,27 +1,45 @@
 import { NPCS, REGION } from '../data/seed'
-import { SPORTS } from '../lib/game'
+import { SPORT_LIST } from '../lib/game'
 import { useApp } from '../store/useApp'
-import type { SportId } from '../types'
+
+/** 종목마다 다른 감탄 이모지 */
+const HYPE = ['🔥', '⚡', '💥', '🚀']
 
 /**
- * 지도 상단의 LED 전광판. MVP에서 선택한 한 종목의 지역 1위만 보여
- * 지도 위 정보량을 줄이고 시안의 게임 HUD 인상을 유지한다.
+ * 지도 상단의 LED 전광판.
+ * 구역 이름을 먼저 외치고, 종목별 1위를 중계하듯 흘려보낸다.
  */
-export default function RankTicker({ sportId = 'badminton' }: { sportId?: SportId }) {
+export default function RankTicker() {
   const me = useApp((s) => s.me)
 
-  const sport = SPORTS[sportId]
-  const player = [...NPCS, me].sort((a, b) => b.elo[sportId] - a.elo[sportId])[0]
+  const items = SPORT_LIST.map((s, i) => {
+    const top = [...NPCS, me].sort((a, b) => b.elo[s.id] - a.elo[s.id])[0]
+    return { sport: s, player: top, hype: HYPE[i % HYPE.length] }
+  })
 
   // 같은 내용을 두 벌 이어 붙이고 절반만큼 밀어 끊김 없이 순환시킨다.
   const row = (
     <div className="ticker-row" aria-hidden="true">
-      <span className="ticker-item ticker-focus">
-        <span className="ticker-chevron">≪</span>
-        <span className="ticker-name">{REGION} {sport.label} 1위</span>
-        <span className="ticker-crown">♛</span>
-        <span className="ticker-elo mono">ELO {player.elo[sportId]}</span>
-        <span className="ticker-chevron">≫</span>
+      <span className="ticker-item ticker-lead">
+        📣 지금 <b>{REGION}</b> 실시간 랭킹 발표!! 📣
+      </span>
+
+      {items.map(({ sport, player, hype }) => (
+        <span className="ticker-item" key={sport.id}>
+          <span className="ticker-sport">{sport.emoji} {sport.label}</span>
+          <span className="ticker-say">1위!는?!</span>
+          <span className="ticker-crown">👑</span>
+          <span className="ticker-name">
+            {player.nickname}{player.isMe && ' (나)'}
+          </span>
+          <span className="ticker-say">님!!</span>
+          <span className="ticker-elo mono">ELO {player.elo[sport.id]}</span>
+          <span className="ticker-crown">{hype}</span>
+        </span>
+      ))}
+
+      <span className="ticker-item ticker-lead">
+        🏆 오늘도 {REGION}에서 한 판! 🏆
       </span>
     </div>
   )
@@ -34,7 +52,8 @@ export default function RankTicker({ sportId = 'badminton' }: { sportId?: SportI
       </div>
       {/* 화면 낭독기에는 흐르는 텍스트 대신 정적인 요약을 준다 */}
       <span className="sr-only">
-        {REGION} {sport.label} 1위 {player.nickname}, ELO {player.elo[sportId]}점
+        {REGION} 종목별 1위 ·{' '}
+        {items.map(({ sport, player }) => `${sport.label} ${player.nickname} ${player.elo[sport.id]}점`).join(', ')}
       </span>
     </div>
   )
