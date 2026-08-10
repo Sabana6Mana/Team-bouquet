@@ -514,6 +514,66 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px;
   font-weight: 700;
 }
+.map-test-button.is-open {
+  border-style: solid;
+  border-color: var(--court);
+  color: var(--court);
+  background: var(--court-soft);
+}
+
+/* 테스트 매칭 종목 고르기. 버튼 바로 위에 펼쳐진다. */
+.test-match-menu {
+  position: absolute;
+  left: 14px;
+  bottom: 134px;
+  /* 닫기용 막(.map-menu-scrim)이 z-index 39 다. 그보다 위에 있어야 눌린다. */
+  z-index: 40;
+  width: 214px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px dashed rgba(120, 141, 130, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 10px 26px rgba(18, 52, 32, 0.2);
+  backdrop-filter: blur(14px);
+}
+.test-match-menu .label { padding: 0 2px 4px; }
+.test-match-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px 4px 4px;
+  border-radius: 9px;
+}
+/* 지금 지도 필터가 가리키는 종목은 배경으로 표시해 둔다. */
+.test-match-row.is-current { background: var(--court-soft); }
+.test-match-row__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.test-match-row__modes { display: flex; gap: 4px; }
+.test-match-row__modes button {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: 'SF Mono', 'Cascadia Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+.test-match-row__modes button:active {
+  border-color: var(--court);
+  background: var(--court);
+  color: #fff;
+}
 
 @media (max-height: 720px) {
   .venue-entity { transform-origin: bottom; }
@@ -1435,9 +1495,11 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700;
   animation: heroSub 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 2s backwards;
 }
-/* 문구가 커지면서 사라지고, 그 사이 코트가 제자리로 물러난다. */
+/* 코트가 물러나는 것과 같은 박자로 빠진다.
+   카메라가 앞쪽에서 크게 움직이므로 문구도 앞쪽에서 빠르게 옅어져야
+   "같이 사라진다"고 느껴진다(뒤로 갈수록 느려지는 곡선). */
 .arena-hero.is-leaving {
-  animation: heroOut 0.6s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
+  animation: heroOut 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 @keyframes heroSub { from { opacity: 0; scale: 0.7; } }
 @keyframes heroTitle { from { opacity: 0; scale: 0.55; translate: 0 14px; } }
@@ -1453,10 +1515,6 @@ a { color: inherit; text-decoration: none; }
 .arena:not(.is-staged) .wide-actions,
 .arena:not(.is-staged) .wide-chat-toggle { opacity: 0; }
 
-/* 팀 이름표가 먼저 자리를 잡는다. */
-.arena.is-staged .team-tag {
-  animation: popIn 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
-}
 /* 캐릭터는 한 명씩 순서대로. 지연 시간은 인원수에 맞춰 JS 가 넣어 준다. */
 .arena.is-staged .stage-player,
 .arena.is-staged .arena-player {
@@ -1477,7 +1535,6 @@ a { color: inherit; text-decoration: none; }
 @keyframes popIn { from { opacity: 0; scale: 0.82; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .arena.is-staged .team-tag,
   .arena.is-staged .stage-player,
   .arena.is-staged .arena-player,
   .arena.is-staged .arena-panel,
@@ -1556,24 +1613,6 @@ a { color: inherit; text-decoration: none; }
   flex-direction: column;
   gap: 8px;
 }
-.wide-side.is-blue { --team: #2f6fd0; --team-soft: rgba(47, 111, 208, 0.16); }
-.wide-side.is-red { --team: #cf4040; --team-soft: rgba(207, 64, 64, 0.16); }
-
-/* 팀 이름표 */
-.team-tag {
-  flex-shrink: 0;
-  align-self: center;
-  padding: 5px 14px;
-  border: 1px solid var(--team);
-  border-radius: 999px;
-  background: var(--team-soft);
-  color: var(--team);
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-}
-
 /* ── 무대에 선 캐릭터 ── */
 
 .wide-cast {
@@ -1592,14 +1631,16 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 5px;
 }
 .stage-player__stand {
   position: relative;
   display: grid;
   place-items: center;
-  width: calc(var(--figure) * 1.15);
-  height: calc(var(--figure) * 1.1);
+  width: calc(var(--figure) * 1.3);
+  /* 이모지 글리프는 font-size 보다 크게 그려진다. 상자를 넉넉히 잡지 않으면
+     아래로 삐져나와 닉네임을 밀어내고 정렬이 어긋나 보인다. */
+  height: calc(var(--figure) * 1.34);
   padding: 0;
 }
 .stage-player__stand:active .stage-player__body { scale: 0.94; }
@@ -1616,6 +1657,51 @@ a { color: inherit; text-decoration: none; }
   transform: translateX(-50%);
   transition: background 0.25s ease;
 }
+/* 연승 중인 선수의 등 뒤 불길.
+   아바타보다 뒤(z-index 0)에 깔려 후광처럼 타오른다. */
+.stage-player__blaze {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  z-index: 0;
+  width: calc(var(--figure) * 1.16);
+  height: calc(var(--figure) * 1.3);
+  /* 위로 갈수록 뾰족해지는 불꽃 모양 */
+  border-radius: 50% 50% 44% 44% / 66% 66% 34% 34%;
+  background:
+    radial-gradient(closest-side at 50% 72%,
+      rgba(255, 236, 170, 0.95) 0%,
+      rgba(255, 170, 60, 0.85) 38%,
+      rgba(240, 88, 30, 0.55) 66%,
+      rgba(200, 40, 20, 0) 100%);
+  filter: blur(5px);
+  transform: translateX(-50%);
+  /* 발밑을 축으로 흔들려야 불길이 위로 솟는 것처럼 보인다. */
+  transform-origin: 50% 100%;
+  animation: blaze 1.05s ease-in-out infinite;
+  pointer-events: none;
+}
+/* 불길이 숨 쉬듯 넘실거린다. 위쪽이 더 크게 흔들리도록 아래를 기준으로 잡는다. */
+@keyframes blaze {
+  0%, 100% { transform: translateX(-50%) scale(1, 1); opacity: 0.82; }
+  35% { transform: translateX(-50%) scale(0.94, 1.09); opacity: 1; }
+  70% { transform: translateX(-50%) scale(1.05, 0.96); opacity: 0.9; }
+}
+/* 발판도 함께 달아오른다.
+   투표 완료(초록)보다 뒤에 정의돼 있으므로 한 단계 더 좁게 잡아 불빛이 이긴다. */
+.wide-cast .stage-player.is-ablaze .stage-player__pad {
+  background: radial-gradient(closest-side, rgba(255, 140, 40, 0.6), rgba(255, 140, 40, 0));
+}
+.stage-player.is-ablaze .stage-player__body {
+  filter:
+    drop-shadow(0 6px 6px rgba(120, 40, 10, 0.3))
+    drop-shadow(0 0 14px rgba(255, 150, 50, 0.75));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-player__blaze { animation: none; }
+}
+
 .stage-player__body {
   position: relative;
   z-index: 1;
@@ -1635,20 +1721,23 @@ a { color: inherit; text-decoration: none; }
   50% { translate: 0 -4%; }
 }
 .stage-player__name {
-  max-width: 88px;
+  display: block;
+  max-width: calc(var(--figure) * 1.6);
   overflow: hidden;
   color: var(--muted);
   font-size: 10.5px;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 /* 시간 투표를 마치면 발판에 팀 색 불이 들어온다. */
 .stage-player.is-voted .stage-player__pad {
-  background: radial-gradient(closest-side, var(--team), transparent);
+  background: radial-gradient(closest-side, var(--court-2), transparent);
   opacity: 0.55;
 }
-.stage-player.is-voted .stage-player__name { color: var(--team); }
+.stage-player.is-voted .stage-player__name { color: var(--court); }
 
 /* 말풍선은 캐릭터 머리 위에 뜬다.
    가장자리 열이라 가운데를 기준으로 펼치면 화면 밖으로 밀려나므로,
@@ -1690,6 +1779,10 @@ a { color: inherit; text-decoration: none; }
 .wide-panel {
   min-width: 0;
   min-height: 0;
+  /* 무대 높이를 다 채우지 않고 내용만큼만 차지한 뒤 세로 가운데에 뜬다.
+     늘려 두면 체육관 정보와 날짜가 위로 붙고 가운데가 텅 빈다. */
+  align-self: center;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1703,10 +1796,15 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  /* 창 가운데를 기준으로 모아 둔다. 폭을 다 쓰면 이름은 왼쪽 끝,
+     요금은 오른쪽 끝에 붙어 창이 텅 비어 보인다. */
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 9px;
   padding: 11px 14px;
   border-bottom: 1px solid var(--line);
 }
+.wide-panel__head .stack { text-align: center; }
 .wide-panel__icon {
   display: grid;
   place-items: center;
@@ -1736,8 +1834,9 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
   padding: 10px 14px 6px;
 }
 .wide-legend { display: flex; gap: 10px; }
@@ -1767,6 +1866,10 @@ a { color: inherit; text-decoration: none; }
   gap: 5px;
   overflow-x: auto;
   padding: 0 14px 4px;
+  /* 날짜가 화면보다 적으면 가운데로 모은다. 넘칠 때 center 를 그대로 쓰면
+     왼쪽이 잘려 스크롤로도 못 보게 되므로 safe 를 붙여 막는다. */
+  justify-content: center;
+  justify-content: safe center;
 }
 .wide-day {
   flex-shrink: 0;
@@ -1784,22 +1887,26 @@ a { color: inherit; text-decoration: none; }
 
 /* 시간 투표 칸. 세로와 같은 방식이고 가로 폭만큼 열을 늘려 잡는다. */
 .wide-slots {
-  flex: 1;
+  /* 남는 공간을 먹지 않는다. 늘리면 날짜와 시간 칸 사이가 벌어진다.
+     대신 창이 넘칠 때는 이 영역만 줄어들며 스크롤된다. */
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   align-content: start;
   gap: 7px;
-  padding: 8px 14px;
+  padding: 10px 14px 12px;
 }
 
 .wide-panel__foot {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 9px 14px;
+  text-align: center;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 11.5px;
@@ -1886,19 +1993,27 @@ a { color: inherit; text-decoration: none; }
 .wide-chat__form .field { height: 40px; border-radius: 11px; font-size: 13px; }
 .wide-chat__form .btn { width: 44px; height: 40px; padding: 0; border-radius: 11px; }
 
-/* 선수를 누르면 뜨는 개인 전적 */
+/* 선수를 누르면 뜨는 개인 전적.
+   캐릭터 안에 놓여 아바타 옆에서 자라난다. */
+/* 바깥을 눌러 닫기 위한 막. 화면을 어둡게 덮지는 않는다 —
+   전적 창은 아바타 옆에 뜨는 작은 말풍선 같은 것이라
+   화면 전체를 가리면 모달처럼 무겁게 느껴진다. */
 .wide-pop-scrim {
   position: absolute;
   inset: 0;
   z-index: 7;
-  background: rgba(18, 52, 32, 0.22);
+  background: transparent;
+  cursor: default;
 }
+/* 창을 연 진영만 막 위로 올려, 아바타에서 나온 창이 가려지지 않게 한다. */
+.wide-side.is-front { z-index: 8; }
+
 .wide-pop {
   position: absolute;
   top: 50%;
-  left: 50%;
-  z-index: 8;
-  width: 240px;
+  z-index: 4;
+  transform: translateY(-50%);
+  width: 230px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1908,7 +2023,67 @@ a { color: inherit; text-decoration: none; }
   border-radius: 18px;
   background: #fff;
   box-shadow: 0 18px 44px rgba(18, 52, 32, 0.28);
-  transform: translate(-50%, -50%);
+  /* 누른 아바타 쪽을 기준점으로 삼아 그 자리에서 부풀어 오른다. */
+  animation: popFromAvatar 0.32s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.wide-pop.is-home {
+  left: calc(100% - 12px);
+  transform-origin: left center;
+}
+.wide-pop.is-away {
+  right: calc(100% - 12px);
+  transform-origin: right center;
+}
+@keyframes popFromAvatar {
+  from { opacity: 0; scale: 0.35; }
+}
+
+/* 1대1처럼 자리가 넉넉할 때. 캐릭터 바로 아래에 그대로 펼쳐 둔다. */
+.wide-pop.is-inline {
+  position: static;
+  width: 100%;
+  max-width: 190px;
+  margin-top: 6px;
+  padding: 12px 12px 10px;
+  transform: none;
+  animation: none;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 20px rgba(18, 52, 32, 0.12);
+}
+.wide-pop.is-inline .wide-pop__name { font-size: 13.5px; }
+.wide-pop.is-inline .wide-pop__stats { margin-top: 6px; padding-top: 8px; }
+.wide-pop.is-inline .wide-pop__stats b { font-size: 15px; }
+/* 아래에 펼쳐 두면 캐릭터 이름표와 겹쳐 보인다. 창 안의 이름만 남긴다. */
+.wide-cast.has-info .stage-player__name { display: none; }
+.wide-cast.has-info .stage-player { width: 100%; }
+
+/* 연승 표시. 불씨가 옆에서 이글거린다. */
+.streak-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 3px 10px 3px 7px;
+  border: 1px solid rgba(239, 118, 40, 0.45);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff3e6, #ffe6d2);
+  color: #c2540f;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.streak-flag__fire {
+  font-size: 12px;
+  line-height: 1;
+  filter:
+    drop-shadow(0 0 4px rgba(251, 146, 60, 0.95))
+    drop-shadow(0 0 10px rgba(239, 68, 68, 0.55));
+  transform-origin: 50% 85%;
+  animation: flame 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-flag__fire { animation: none; }
 }
 .wide-pop__close {
   position: absolute;

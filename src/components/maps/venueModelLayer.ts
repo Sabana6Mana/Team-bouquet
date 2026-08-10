@@ -36,6 +36,16 @@ const MAX_HEIGHT_RATIO = 1.7
 const BEAM_HEIGHT = 4.8
 const BEAM_CORE_RADIUS = 0.075
 const BEAM_GLOW_RADIUS = 0.2
+/**
+ * 바닥에 퍼지는 파동이 닿는 최대 반경(건물 가로폭 배수).
+ * 크게 잡으면 이웃 거점의 파동과 겹쳐 지도가 지저분해진다.
+ */
+const RIPPLE_RADIUS = 1.5
+
+/** 왕관(구역 1위) 거점의 금빛. */
+const CROWN_TONE = '#f0bd33'
+/** 최근 경기가 많은 인기 거점의 불빛. */
+const HOT_TONE = '#ff7a2f'
 
 export interface VenueModelPlacement {
   id: string
@@ -47,6 +57,21 @@ export interface VenueModelPlacement {
   seat?: number
   /** 선택된 거점은 살짝 키워 강조한다. */
   selected?: boolean
+  /** 최근 경기가 몰린 거점. 빛이 빠르고 진해진다. */
+  hot?: boolean
+  /** 이 구역 최고 ELO 거점. 금빛으로 바뀐다. */
+  crowned?: boolean
+}
+
+/** 거점 상태에 따른 빛의 색·속도·세기. 지도가 곧 정보가 되도록 묶는다. */
+function beamTone(place: VenueModelPlacement) {
+  const color = place.crowned ? CROWN_TONE : place.hot ? HOT_TONE : place.color
+  // 인기 거점은 빠르게 뛰고, 왕관은 느긋하고 묵직하게 흐른다.
+  const speed = place.hot ? 1.9 : place.crowned ? 0.85 : 1.2
+  const strength = (place.selected ? 1.3 : 0.82)
+    * (place.hot ? 1.25 : 1)
+    * (place.crowned ? 1.15 : 1)
+  return { color, speed, strength }
 }
 
 /** 지금 줌에서 체육관 한 채가 가질 실제 가로 크기(m). */
@@ -124,13 +149,58 @@ const BEAM_FRAGMENT = `
 uniform vec3 uColor;
 uniform float uStrength;
 uniform float uTime;
+uniform float uSpeed;
 varying float vHeight;
 
 void main() {
   float fade = pow(1.0 - vHeight, 1.5);
   float root = smoothstep(0.0, 0.05, vHeight);
-  float pulse = 0.8 + 0.2 * sin(uTime * 2.3 - vHeight * 7.0);
-  gl_FragColor = vec4(uColor, fade * root * pulse * uStrength);
+
+  // 위로 흘러 올라가는 에너지 띠.
+  // sin 을 그대로 쓰면 두루뭉술하니 세제곱해 마디를 또렷하게 세운다.
+  float phase = vHeight * 3.2 - uTime * uSpeed;
+  float crest = pow(sin(phase * 6.2831853) * 0.5 + 0.5, 3.0);
+  float flow = 0.42 + 0.9 * crest;
+
+  gl_FragColor = vec4(uColor, fade * root * flow * uStrength);
+}
+`
+
+/**
+ * 바닥에 퍼지는 파동.
+ * 원판 하나에 두 겹의 링을 그려 끊김 없이 이어지게 한다.
+ */
+const RIPPLE_VERTEX = `
+varying vec2 vUvw;
+void main() {
+  vUvw = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+
+const RIPPLE_FRAGMENT = `
+uniform vec3 uColor;
+uniform float uStrength;
+uniform float uTime;
+uniform float uSpeed;
+varying vec2 vUvw;
+
+/** 반지름 r 인 링 하나. 퍼질수록 옅어지고 얇아진다. */
+float ringAt(float dist, float t) {
+  float width = mix(0.09, 0.028, t);
+  float band = smoothstep(width, 0.0, abs(dist - t));
+  return band * (1.0 - t) * (1.0 - t);
+}
+
+void main() {
+  float dist = length(vUvw - 0.5) * 2.0;
+  if (dist > 1.0) discard;
+
+  float cycle = uTime * uSpeed * 0.45;
+  // 반 주기 어긋난 링을 겹쳐 물결이 끊기지 않게 한다.
+  float wave = ringAt(dist, fract(cycle)) + ringAt(dist, fract(cycle + 0.5));
+
+  gl_FragColor = vec4(uColor, wave * uStrength * 0.75);
 }
 `
 
@@ -138,6 +208,14 @@ function beamGeometry(radius: number) {
   const geometry = new THREE.CylinderGeometry(radius, radius, BEAM_HEIGHT, 20, 1, true)
   // 원기둥은 중심이 원점이다. 바닥이 지면에 닿도록 절반만큼 올린다.
   geometry.translate(0, BEAM_HEIGHT / 2, 0)
+  return geometry
+}
+
+function rippleGeometry() {
+  const geometry = new THREE.CircleGeometry(RIPPLE_RADIUS, 48)
+  // 원판은 XY 평면에 서 있다. 눕혀서 지면(XZ)에 깔고 살짝 띄운다.
+  geometry.rotateX(-Math.PI / 2)
+  geometry.translate(0, 0.012, 0)
   return geometry
 }
 
@@ -187,6 +265,8 @@ interface VenueInstance {
   /** 건물만 담는 칸. 모델을 갈아 끼울 때 이 칸만 비운다. */
   shell: THREE.Group
   beams: THREE.ShaderMaterial[]
+  /** 바닥에 퍼지는 파동. */
+  ripple: THREE.ShaderMaterial
   /** 어떤 건물을 붙였는지. 모델이 늦게 도착하면 이 값을 보고 갈아 끼운다. */
   variant: number
 }
@@ -216,6 +296,7 @@ export function createVenueModelLayer(
   const beamTime = { value: 0 }
   const coreGeometry = beamGeometry(BEAM_CORE_RADIUS)
   const glowGeometry = beamGeometry(BEAM_GLOW_RADIUS)
+  const rippleMesh = rippleGeometry()
   const startedAt = typeof performance === 'undefined' ? 0 : performance.now()
   const reducedMotion = typeof window !== 'undefined'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -262,6 +343,7 @@ export function createVenueModelLayer(
         uniforms: {
           uColor: { value: new THREE.Color() },
           uStrength: { value: 1 },
+          uSpeed: { value: 1 },
           uTime: beamTime,
         },
         transparent: true,
@@ -274,8 +356,24 @@ export function createVenueModelLayer(
       return material
     })
 
+    // 바닥 파동. 건물보다 먼저 그려도 되도록 깊이는 남기지 않는다.
+    const ripple = new THREE.ShaderMaterial({
+      vertexShader: RIPPLE_VERTEX,
+      fragmentShader: RIPPLE_FRAGMENT,
+      uniforms: {
+        uColor: { value: new THREE.Color() },
+        uStrength: { value: 1 },
+        uSpeed: { value: 1 },
+        uTime: beamTime,
+      },
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    group.add(new THREE.Mesh(rippleMesh, ripple))
+
     scene.add(group)
-    return { group, shell, beams, variant }
+    return { group, shell, beams, ripple, variant }
   }
 
   /**
@@ -308,18 +406,24 @@ export function createVenueModelLayer(
       instance.group.rotation.y = look.yaw
       instance.group.scale.setScalar(base * look.scale * (place.selected ? 1.18 : 1))
 
-      // 넓은 후광은 옅게, 가운데 심지는 진하게. 선택한 거점은 더 밝힌다.
-      const strength = place.selected ? 1 : 0.66
+      // 색·속도·세기는 거점 상태가 정한다(인기·1위·선택).
+      const tone = beamTone(place)
       instance.beams.forEach((material, index) => {
-        rawColor(place.color, material.uniforms.uColor.value as THREE.Color)
-        material.uniforms.uStrength.value = (index === 0 ? 0.22 : 0.58) * strength
+        rawColor(tone.color, material.uniforms.uColor.value as THREE.Color)
+        // 넓은 후광은 옅게, 가운데 심지는 진하게.
+        material.uniforms.uStrength.value = (index === 0 ? 0.24 : 0.6) * tone.strength
+        material.uniforms.uSpeed.value = tone.speed
       })
+      rawColor(tone.color, instance.ripple.uniforms.uColor.value as THREE.Color)
+      instance.ripple.uniforms.uStrength.value = tone.strength
+      instance.ripple.uniforms.uSpeed.value = tone.speed
     })
 
     instances.forEach((instance, id) => {
       if (alive.has(id)) return
       scene.remove(instance.group)
       instance.beams.forEach((material) => material.dispose())
+      instance.ripple.dispose()
       instances.delete(id)
     })
   }
@@ -356,10 +460,12 @@ export function createVenueModelLayer(
       instances.forEach((instance) => {
         scene.remove(instance.group)
         instance.beams.forEach((material) => material.dispose())
+        instance.ripple.dispose()
       })
       instances.clear()
       coreGeometry.dispose()
       glowGeometry.dispose()
+      rippleMesh.dispose()
       templates.fill(null)
       // 캔버스는 MapLibre 소유라 renderer.dispose() 만 하고 컨텍스트는 건드리지 않는다.
       renderer?.dispose()

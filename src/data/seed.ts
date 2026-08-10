@@ -103,6 +103,9 @@ export const NPCS: Player[] = NICKS.map((nickname, i) => ({
   stickers: (i * 7) % 62,
   wins: 12 + ((i * 5) % 40),
   losses: 8 + ((i * 3) % 30),
+  // 세 명 중 한 명꼴로 연승 중. ELO가 가장 가까운 npc-0 이 여기 들어가야
+  // 1대1 매칭에서도 불붙은 상대를 만난다.
+  streak: i % 3 === 0 ? 2 + ((i * 4) % 5) : 0,
   clanId: i % 3 === 0 ? 'c1' : i % 3 === 1 ? 'c2' : undefined,
 }))
 

@@ -1,4 +1,4 @@
-import type { MatchMode, SportId, SportMeta } from '../types'
+import type { MatchMode, MatchRecord, Player, SportId, SportMeta } from '../types'
 
 export const SPORTS: Record<SportId, SportMeta> = {
   // 흰 배경에서 글자로 읽힐 만큼 진한 색으로 맞춘다. 테니스는 브랜드색인 코트 그린.
@@ -193,6 +193,22 @@ export const TIERS: Tier[] = [
   { name: '다이아', short: 'D', color: '#2F6FD0', led: '#7FB6FF', min: 1800 },
   { name: '마스터', short: 'M', color: '#7A45C9', led: '#C79BFF', min: 2000 },
 ]
+
+/**
+ * 지금 이어지고 있는 연승 수.
+ *
+ * 내 기록은 전적 목록(최신순)을 거슬러 세고, NPC 는 시드에 박아 둔 값을 쓴다.
+ * 진 경기를 만나면 거기서 끊는다. 참여하지 않은 경기는 건너뛴다.
+ */
+export function winStreakOf(player: Player, history: MatchRecord[]): number {
+  if (!player.isMe) return player.streak ?? 0
+  let streak = 0
+  for (const record of history) {
+    if (record.losers.includes(player.id)) break
+    if (record.winners.includes(player.id)) streak += 1
+  }
+  return streak
+}
 
 export function tierOf(elo: number): Tier {
   let found = TIERS[0]

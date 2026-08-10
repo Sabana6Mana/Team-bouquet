@@ -10,6 +10,7 @@ import {
 import { BOT_CHATS, HOME, NPCS, VENUES } from '../data/seed'
 import { backendApi, backendConfig } from '../backend'
 import { forcedDemo, serverMode } from '../lib/forcedDemo'
+import { INTRO_TOTAL_MS } from '../lib/matchIntro'
 
 /** 데모 시뮬레이션용 타이머. 상태에 넣으면 직렬화가 깨지므로 모듈 레벨에서 관리한다. */
 let timers: ReturnType<typeof setTimeout>[] = []
@@ -844,6 +845,8 @@ function scheduleBotBehaviour(
           chat: [...cur.chat, { id: uid('c'), playerId: b.id, at: Date.now(), text: BOT_CHATS[i % BOT_CHATS.length] }],
         },
       })
-    }, 1500 + i * 1800)
+      // 등장 연출이 끝난 뒤에 말을 건다. 연출 중에 말하면 아직 서 있지도 않은
+      // 캐릭터 위에서 말풍선이 떴다 사라져 대화가 통째로 씹힌다.
+    }, INTRO_TOTAL_MS + i * 1800)
   })
 }

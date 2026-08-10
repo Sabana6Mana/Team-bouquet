@@ -314,6 +314,8 @@ export default function MapLibreVenueMap({
     lng: marker.lng,
     color: marker.color,
     seat: marker.seat,
+    hot: marker.hot,
+    crowned: marker.crowned,
     selected: marker.id === activeId,
   }))
 

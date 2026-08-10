@@ -7,7 +7,7 @@ import { activeMatchPath } from '../components/ui'
 import { HOME, HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
 import { QUICK_RADIUS_M, SPORTS, distanceMeters, tierOf } from '../lib/game'
 import { useApp } from '../store/useApp'
-import type { SportId } from '../types'
+import type { MatchMode, SportId } from '../types'
 
 const MAP_SPORTS: SportId[] = ['badminton', 'tennis', 'tabletennis', 'basketball']
 
@@ -32,6 +32,7 @@ export default function MapScreen() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [sport, setSport] = useState<SportId | 'all'>('all')
   const [filterOpen, setFilterOpen] = useState(false)
+  const [testOpen, setTestOpen] = useState(false)
   const nav = useNavigate()
 
   const isAll = sport === 'all'
@@ -102,12 +103,11 @@ export default function MapScreen() {
   /**
    * 매칭 이후 화면을 보기 위한 테스트 매치.
    * 진행 중인 매치가 있어도 밀어내고, 서버 대신 NPC가 자리를 채운다.
-   * 팀 구성 화면까지 확인해야 하니 가능하면 복식으로 연다.
+   * 종목과 인원은 고른 대로 연다(단식은 팀 구성 화면을 건너뛴다).
    */
-  const startTestMatch = () => {
-    const target: SportId = isAll ? 'badminton' : sport
-    const modes = SPORTS[target].modes
-    forceDemoMatch(target, modes.includes('2v2') ? '2v2' : modes[0])
+  const startTestMatch = (target: SportId, mode: MatchMode) => {
+    forceDemoMatch(target, mode)
+    setTestOpen(false)
     nav('/queue')
   }
 
@@ -205,10 +205,43 @@ export default function MapScreen() {
       )}
 
       {testToolsEnabled() && (
-        <button className="map-test-button" onClick={startTestMatch}>
-          <span aria-hidden="true">🧪</span>
-          <span>테스트 매칭</span>
-        </button>
+        <>
+          <button
+            className={`map-test-button${testOpen ? ' is-open' : ''}`}
+            onClick={() => setTestOpen((open) => !open)}
+            aria-expanded={testOpen}
+          >
+            <span aria-hidden="true">🧪</span>
+            <span>테스트 매칭</span>
+          </button>
+
+          {testOpen && (
+            <>
+              <button className="map-menu-scrim" onClick={() => setTestOpen(false)} aria-label="테스트 메뉴 닫기" />
+              <div className="test-match-menu fade-in" role="menu" aria-label="테스트 매칭 종목">
+                <span className="label">종목 · 인원 선택</span>
+                {MAP_SPORTS.map((id) => {
+                  const meta = SPORTS[id]
+                  return (
+                    <div key={id} className={`test-match-row${id === sport ? ' is-current' : ''}`}>
+                      <span className="test-match-row__name">
+                        <span aria-hidden="true">{meta.emoji}</span>
+                        {meta.label}
+                      </span>
+                      <span className="test-match-row__modes">
+                        {meta.modes.map((mode) => (
+                          <button key={mode} role="menuitem" onClick={() => startTestMatch(id, mode)}>
+                            {mode}
+                          </button>
+                        ))}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       <div className="quick-match-dock">

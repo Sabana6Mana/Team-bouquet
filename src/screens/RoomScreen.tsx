@@ -5,10 +5,14 @@ import { VENUES } from '../data/seed'
 import type { Match, Player, SportId } from '../types'
 import {
   DAYS_AHEAD, MODE_LABEL, SPORTS, TIME_SLOTS, bookedHoursFor, dayLabel,
-  encodeSlot, isPastSlot, isSlotOpen, slotDay, slotHour, slotLabel, slotShortLabel, tierOf, won,
+  encodeSlot, isPastSlot, isSlotOpen, slotDay, slotHour, slotLabel, slotShortLabel,
+  tierOf, winStreakOf, won,
 } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
+import {
+  INTRO_CAST_MS, INTRO_HERO_MS, INTRO_SETTLE_MS, INTRO_TAIL_MS,
+} from '../lib/matchIntro'
 
 // three.js 는 무겁다. 매칭 화면에 들어올 때만 따로 받아 첫 화면을 가볍게 둔다.
 const CourtStage = lazy(() => import('../components/CourtStage'))
@@ -19,25 +23,18 @@ const BUBBLE_MS = 3600
 /** 한 시간 칸이 지금 어떤 상태인지. 표시와 클릭 가능 여부를 함께 정한다. */
 type SlotState = 'open' | 'picked' | 'booked' | 'past'
 
-/** 등장 연출 단계. hero(코트 확대 + 문구) → settle(문구 퇴장) → done(무대) */
-type Intro = 'hero' | 'settle' | 'done'
-
-/** 문구 세 줄이 1초 간격으로 뜨고(=2초), 마지막 줄을 2초 머금는다. */
-const INTRO_HERO_MS = 4000
-/** 문구가 사라지며 코트가 물러나는 시간. */
-const INTRO_SETTLE_MS = 600
-/** 캐릭터가 처음부터 끝까지 순서대로 다 나오는 데 걸리는 시간. */
-const INTRO_CAST_MS = 3000
+/**
+ * 등장 연출 단계.
+ * hero(코트 확대 + 문구) → settle(문구 퇴장) → cast(캐릭터가 차례로 등장) → done
+ * cast 까지는 화면이 아직 연출 중이라 채팅을 막는다.
+ */
+type Intro = 'hero' | 'settle' | 'cast' | 'done'
 
 /**
  * 이미 등장 연출을 보여 준 매치.
  * 지도에 나갔다 돌아올 때마다 다시 트는 것을 막는다.
  */
 const introShown = new Set<string>()
-
-/** 팀 이름과 색. 팀 구성 화면(TeamScreen)과 같은 규칙을 쓴다. */
-const TEAM_LABEL: Record<'a' | 'b', string> = { a: 'TEAM BLUE', b: 'TEAM RED' }
-const TEAM_TONE: Record<'a' | 'b', string> = { a: 'blue', b: 'red' }
 
 /**
  * 선수를 두 편으로 가른다. 내 편이 언제나 home 이다.
@@ -96,54 +93,96 @@ function ArenaPlayer({
  * 크기는 부모가 --figure 로 정한다(인원이 많을수록 작아진다).
  */
 function StagePlayer({
-  player, voted, says, side, onOpen, delay = 0,
+  player, voted, says, side, onOpen, delay = 0, ablaze = false, children,
 }: {
   player: Player; voted: boolean; says?: string
-  side: 'home' | 'away'; onOpen: () => void; delay?: number
+  side: 'home' | 'away'; delay?: number
+  /** 연승 중이면 등 뒤에서 불길이 타오른다. */
+  ablaze?: boolean
+  /** 없으면 누를 수 없는 캐릭터가 된다(전적이 이미 아래에 펼쳐진 경우). */
+  onOpen?: () => void
+  /** 전적 창. 이 캐릭터 안에 두어야 아바타에서 자라나는 것처럼 보인다. */
+  children?: React.ReactNode
 }) {
+  const figure = (
+    <>
+      <span className="stage-player__pad" aria-hidden="true" />
+      {/* 불길은 아바타보다 뒤에 깔려 후광처럼 보인다. */}
+      {ablaze && <span className="stage-player__blaze" aria-hidden="true" />}
+      {/* 아바타는 도트 그래픽이 준비될 때까지 이모지로 대신한다. */}
+      <span className="stage-player__body" aria-hidden="true">{player.avatar}</span>
+    </>
+  )
+
   return (
     <div
-      className={`stage-player is-${side}${voted ? ' is-voted' : ''}`}
+      className={`stage-player is-${side}${voted ? ' is-voted' : ''}${ablaze ? ' is-ablaze' : ''}`}
       style={{ animationDelay: `${delay}ms` }}
     >
       {says && <span className="arena-bubble fade-in">{says}</span>}
-      <button
-        className="stage-player__stand"
-        onClick={onOpen}
-        aria-label={`${player.isMe ? '나' : player.nickname} 전적 보기`}
-      >
-        <span className="stage-player__pad" aria-hidden="true" />
-        {/* 아바타는 도트 그래픽이 준비될 때까지 이모지로 대신한다. */}
-        <span className="stage-player__body" aria-hidden="true">{player.avatar}</span>
-      </button>
+      {onOpen ? (
+        <button
+          className="stage-player__stand"
+          onClick={onOpen}
+          aria-label={`${player.isMe ? '나' : player.nickname} 전적 보기`}
+        >
+          {figure}
+        </button>
+      ) : (
+        <span className="stage-player__stand">{figure}</span>
+      )}
       <span className="stage-player__name">{player.isMe ? '나' : player.nickname}</span>
+      {children}
     </div>
   )
 }
 
-/** 선수를 눌렀을 때 뜨는 개인 전적. 프로필·ELO·승패만 간결하게 보여 준다. */
+/**
+ * 개인 전적.
+ * placement 가 'inline' 이면 캐릭터 아래에 그대로 펼쳐지고(1대1처럼 자리가 넉넉할 때),
+ * 아니면 누른 아바타 옆에서 자라나는 창이 된다.
+ */
 function PlayerProfile({
-  player, sport, onClose,
-}: { player: Player; sport: SportId; onClose: () => void }) {
+  player, sport, streak, placement, onClose,
+}: {
+  player: Player; sport: SportId; streak: number
+  placement: 'home' | 'away' | 'inline'; onClose?: () => void
+}) {
   const elo = player.elo[sport]
   const tier = tierOf(elo)
   const played = player.wins + player.losses
   const rate = played === 0 ? null : Math.round((player.wins / played) * 100)
+  const inline = placement === 'inline'
 
   return (
-    <div className="wide-pop fade-in" role="dialog" aria-label="선수 전적">
-      <button className="wide-pop__close" onClick={onClose} aria-label="닫기">✕</button>
-      <span className="wide-pop__face" aria-hidden="true">{player.avatar}</span>
+    <div
+      className={`wide-pop is-${placement}`}
+      role={inline ? undefined : 'dialog'}
+      aria-label={inline ? undefined : '선수 전적'}
+    >
+      {onClose && (
+        <button className="wide-pop__close" onClick={onClose} aria-label="닫기">✕</button>
+      )}
+      {!inline && <span className="wide-pop__face" aria-hidden="true">{player.avatar}</span>}
       <strong className="wide-pop__name">{player.isMe ? `${player.nickname} (나)` : player.nickname}</strong>
       <span className="wide-pop__tier mono" style={{ color: tier.color }}>
         {tier.name} · {elo} ELO
       </span>
+
+      {/* 연승 중일 때만. 불씨가 옆에서 이글거린다. */}
+      {streak >= 2 && (
+        <span className="streak-flag">
+          <span className="streak-flag__fire" aria-hidden="true">🔥</span>
+          {streak}연승중
+        </span>
+      )}
+
       <div className="wide-pop__stats">
         <span><small>승리</small><b>{player.wins}</b></span>
         <span><small>패배</small><b>{player.losses}</b></span>
         <span><small>승률</small><b>{rate === null ? '-' : `${rate}%`}</b></span>
       </div>
-      <span className="wide-pop__foot">👏 받은 칭찬 스티커 {player.stickers}개</span>
+      <span className="wide-pop__foot">👏 칭찬 {player.stickers}개</span>
     </div>
   )
 }
@@ -156,6 +195,7 @@ export default function RoomScreen() {
   const openReporting = useApp((s) => s.openReporting)
   const cancelMatch = useApp((s) => s.cancelMatch)
   const backendSlotIds = useApp((s) => s.backendSlotIds)
+  const history = useApp((s) => s.history)
   const backend = useBackend()
   const nav = useNavigate()
   const wide = useLandscape()
@@ -175,7 +215,9 @@ export default function RoomScreen() {
   // 화면에 처음 들어왔을 때 지난 대화가 한꺼번에 터지지 않도록 첫 회는 건너뛴다.
   useEffect(() => {
     const chat = match?.chat ?? []
-    if (seenRef.current < 0 || chat.length < seenRef.current) {
+    // 연출 중에는 캐릭터가 아직 없거나 등장하는 중이라 말풍선을 띄우지 않는다.
+    // 지나간 말이 나중에 한꺼번에 터지지 않도록 읽음 위치만 맞춰 둔다.
+    if (seenRef.current < 0 || chat.length < seenRef.current || intro !== 'done') {
       seenRef.current = chat.length
       return
     }
@@ -195,7 +237,7 @@ export default function RoomScreen() {
         })
       }, BUBBLE_MS)
     })
-  }, [match?.chat.length])
+  }, [match?.chat.length, intro])
 
   useEffect(() => () => {
     Object.values(bubbleTimers.current).forEach(clearTimeout)
@@ -213,14 +255,15 @@ export default function RoomScreen() {
     }
     setIntro('hero')
     const toSettle = setTimeout(() => setIntro('settle'), INTRO_HERO_MS)
+    const toCast = setTimeout(() => setIntro('cast'), INTRO_HERO_MS + INTRO_SETTLE_MS)
     const toDone = setTimeout(() => {
       // 끝까지 재생한 뒤에야 "봤음"으로 남긴다.
       // 시작하자마자 기록하면 StrictMode 가 effect 를 두 번 돌릴 때
       // 두 번째 실행이 스스로 남긴 기록을 보고 연출을 건너뛴다.
       introShown.add(id)
       setIntro('done')
-    }, INTRO_HERO_MS + INTRO_SETTLE_MS)
-    return () => { clearTimeout(toSettle); clearTimeout(toDone) }
+    }, INTRO_HERO_MS + INTRO_SETTLE_MS + INTRO_CAST_MS + INTRO_TAIL_MS)
+    return () => { clearTimeout(toSettle); clearTimeout(toCast); clearTimeout(toDone) }
   }, [match?.id])
 
   // 매칭 화면만은 셸의 휴대폰 폭을 풀어 준다.
@@ -253,8 +296,6 @@ export default function RoomScreen() {
   const votedCount = Object.keys(match.votes).length
   const confirmed = match.phase === 'confirmed'
   const { home, away } = splitSides(match, me.id)
-  /** 내 편이 어느 팀인지. 팀 배정 전에는 BLUE 를 기본으로 둔다. */
-  const homeTeam: 'a' | 'b' = match.teams.b.includes(me.id) ? 'b' : 'a'
   const profile = match.players.find((p) => p.id === profileId) ?? null
 
   const votersOf = (slot: number) =>
@@ -326,7 +367,17 @@ export default function RoomScreen() {
     </div>
   )
 
-  const staged = intro === 'done'
+  /**
+   * 한 편에 한 명뿐이면(1대1) 아래가 널널하니 전적을 캐릭터 밑에 바로 펼친다.
+   * 여럿이면 자리가 없어 아바타를 눌러 보는 방식으로 둔다.
+   */
+  const inlineInfo = Math.max(home.length, away.length) === 1
+  const streakOf = (player: Player) => winStreakOf(player, history)
+
+  /** 무대 요소가 들어오기 시작하는 시점(캐릭터 등장 포함). */
+  const staged = intro === 'cast' || intro === 'done'
+  /** 연출이 완전히 끝나 대화를 주고받을 수 있는 시점. */
+  const ready = intro === 'done'
 
   /**
    * 캐릭터 등장 순서. 양 진영을 번갈아 세워 마주 보며 채워지게 한다.
@@ -344,8 +395,13 @@ export default function RoomScreen() {
     return (id: string) => (staged ? (order.get(id) ?? 0) * step : 0)
   })()
 
-  /** 매칭 성사 순간 화면을 덮는 문구. 종목 이름을 넣어 판을 알린다. */
-  const heroBanner = intro !== 'done' && (
+  /**
+   * 매칭 성사 순간 화면을 덮는 문구. 종목 이름을 넣어 판을 알린다.
+   *
+   * hero·settle 두 단계에서만 그린다. cast 까지 남겨 두면 is-leaving 이 떨어지면서
+   * 등장 애니메이션이 처음부터 다시 돌아, 사라진 문구가 곧바로 되살아난다.
+   */
+  const heroBanner = (intro === 'hero' || intro === 'settle') && (
     <div className={`arena-hero${intro === 'settle' ? ' is-leaving' : ''}`}>
       <span className="arena-hero__sub">매칭 성사</span>
       <strong className="arena-hero__title">{meta.label} 한판 뜨자!</strong>
@@ -442,14 +498,16 @@ export default function RoomScreen() {
 
   if (wide) {
     /**
-     * 한쪽 진영. 팀 이름표 아래로 선수가 위에서 아래로 늘어선다.
+     * 한쪽 진영. 선수가 위에서 아래로 늘어선다.
      * 캐릭터마다 머리 위 말풍선 자리를 비워 두므로 인원이 늘면 조금씩 작아진다.
+     *
+     * 팀 이름표는 두지 않는다. 이 화면은 아직 시간을 정하는 단계라
+     * BLUE/RED 편성 자체가 없다(팀은 다음 화면에서 짠다).
      */
-    const side = (players: Player[], team: 'a' | 'b', at: 'home' | 'away') => (
-      <aside className={`wide-side is-${TEAM_TONE[team]}`}>
-        <span className="team-tag">{TEAM_LABEL[team]}</span>
+    const side = (players: Player[], at: 'home' | 'away') => (
+      <aside className={`wide-side is-${at}${players.some((p) => p.id === profileId) ? ' is-front' : ''}`}>
         <div
-          className={`wide-cast is-${at}`}
+          className={`wide-cast is-${at}${inlineInfo ? ' has-info' : ''}`}
           style={{ ['--figure' as string]: players.length > 2 ? '68px' : players.length > 1 ? '82px' : '96px' }}
         >
           {players.map((player) => (
@@ -458,10 +516,29 @@ export default function RoomScreen() {
               player={player}
               side={at}
               voted={match.votes[player.id] !== undefined}
+              ablaze={streakOf(player) >= 2}
               says={bubbles[player.id]}
-              onOpen={() => setProfileId(player.id)}
+              // 전적이 이미 아래 펼쳐져 있으면 누를 이유가 없다.
+              onOpen={inlineInfo ? undefined : () => setProfileId(player.id === profileId ? null : player.id)}
               delay={castDelay(player.id)}
-            />
+            >
+              {inlineInfo ? (
+                <PlayerProfile
+                  player={player}
+                  sport={match.sport}
+                  streak={streakOf(player)}
+                  placement="inline"
+                />
+              ) : player.id === profileId && (
+                <PlayerProfile
+                  player={player}
+                  sport={match.sport}
+                  streak={streakOf(player)}
+                  placement={at}
+                  onClose={() => setProfileId(null)}
+                />
+              )}
+            </StagePlayer>
           ))}
         </div>
       </aside>
@@ -478,13 +555,13 @@ export default function RoomScreen() {
         <button className="wide-back" onClick={() => nav('/')} aria-label="지도로 돌아가기">←</button>
 
         <div className="wide-grid">
-          {side(home, homeTeam, 'home')}
+          {side(home, 'home')}
 
           {/* 가운데 — 선택 창 */}
           <section className="wide-panel">
             <header className="wide-panel__head">
               <span className="wide-panel__icon" aria-hidden="true">{meta.emoji}</span>
-              <div className="stack grow" style={{ gap: 2, minWidth: 0 }}>
+              <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                 <strong style={{ fontSize: 16 }}>{venueName}</strong>
                 <span className="small">📍 {venue?.address ?? '위치 정보 없음'}</span>
               </div>
@@ -521,7 +598,7 @@ export default function RoomScreen() {
             </footer>
           </section>
 
-          {side(away, homeTeam === 'a' ? 'b' : 'a', 'away')}
+          {side(away, 'away')}
         </div>
 
         {/* 왼쪽 아래 — 매칭 조작 */}
@@ -538,11 +615,12 @@ export default function RoomScreen() {
             <form className="wide-chat__form" onSubmit={submitChat}>
               <input
                 className="field grow"
-                placeholder="메시지를 입력하세요…"
+                placeholder={ready ? '메시지를 입력하세요…' : '입장 중…'}
                 value={text}
+                disabled={!ready}
                 onChange={(e) => setText(e.target.value)}
               />
-              <button className="btn primary" disabled={!text.trim()}>➤</button>
+              <button className="btn primary" disabled={!ready || !text.trim()}>➤</button>
             </form>
           </div>
         )}
@@ -556,11 +634,9 @@ export default function RoomScreen() {
         </button>
 
         {/* 선수를 누르면 그 사람의 전적만 따로 본다. */}
+        {/* 전적 창은 해당 캐릭터 안에서 자라난다. 바깥은 닫기용 막이다. */}
         {profile && (
-          <>
-            <button className="wide-pop-scrim" onClick={() => setProfileId(null)} aria-label="닫기" />
-            <PlayerProfile player={profile} sport={match.sport} onClose={() => setProfileId(null)} />
-          </>
+          <button className="wide-pop-scrim" onClick={() => setProfileId(null)} aria-label="닫기" />
         )}
       </div>
     )
@@ -701,11 +777,12 @@ export default function RoomScreen() {
             <form className="row" style={{ gap: 8 }} onSubmit={submitChat}>
               <input
                 className="field grow"
-                placeholder="메시지 입력"
+                placeholder={ready ? '메시지 입력' : '입장 중…'}
                 value={text}
+                disabled={!ready}
                 onChange={(e) => setText(e.target.value)}
               />
-              <button className="btn primary" style={{ width: 52, padding: 0 }} disabled={!text.trim()}>↑</button>
+              <button className="btn primary" style={{ width: 52, padding: 0 }} disabled={!ready || !text.trim()}>↑</button>
               <button
                 type="button"
                 className={`arena-log-toggle${logOpen ? ' is-open' : ''}`}
