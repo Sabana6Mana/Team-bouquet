@@ -31,6 +31,8 @@ export interface Player {
   stickers: number
   wins: number
   losses: number
+  /** 지금 이어지고 있는 연승 수. 0이면 연승 중이 아니다. */
+  streak?: number
   isMe?: boolean
   clanId?: string
 }

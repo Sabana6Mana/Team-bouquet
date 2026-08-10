@@ -8,11 +8,18 @@ import {
   type CurrentMatch, type ProfileWithRatings, type QueueEntry, type VenueSlot,
 } from '../backend'
 import { encodeSlot } from '../lib/game'
+import { forcedDemo } from '../lib/forcedDemo'
 import { useApp } from '../store/useApp'
 import type { Account, Match, MatchPhase, Player, SportId } from '../types'
 
 interface BackendRuntime {
+  /** Supabase 가 설정돼 있는지. 로그인·프로필 흐름이 이 값을 본다. */
   enabled: boolean
+  /**
+   * 지금 매치를 서버가 굴리고 있는지.
+   * 화면 확인용 테스트 매치 중에는 false 가 되어, 매칭 화면들이 NPC 데모 흐름을 그린다.
+   */
+  liveMatch: boolean
   ready: boolean
   user: User | null
   profileReady: boolean
@@ -244,9 +251,13 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const refreshQueued = useRef(false)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const backendRefreshVersion = useApp((state) => state.backendRefreshVersion)
+  const testMatch = useApp((state) => state.testMatch)
 
   const refresh = useCallback(async () => {
     if (!backendConfig.configured || !session?.user) return
+    // 테스트용 강제 데모 매치 중에는 서버 상태로 덮어쓰지 않는다.
+    // 서버에는 없는 매치라, 한 번만 동기화돼도 테스트 매치가 사라진다.
+    if (forcedDemo.active) return
     refreshQueued.current = true
     if (refreshInFlight.current) return refreshInFlight.current
 
@@ -452,6 +463,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<BackendRuntime>(() => ({
     enabled: backendConfig.configured,
+    liveMatch: backendConfig.configured && !testMatch,
     ready,
     user: session?.user ?? null,
     profileReady,
@@ -488,7 +500,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       await refresh()
     },
     refresh,
-  }), [ready, session, profileReady, error, refresh])
+  }), [ready, session, profileReady, error, refresh, testMatch])
 
   return <BackendContext.Provider value={value}>{children}</BackendContext.Provider>
 }

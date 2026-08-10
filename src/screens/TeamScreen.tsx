@@ -41,8 +41,8 @@ export default function TeamScreen() {
   const venueName = venue?.name ?? match.venueName ?? '매칭 장소'
   const meta = SPORTS[match.sport]
   const half = match.capacity / 2
-  const canEditTeams = !backend.enabled || match.hostId === me.id
-  const shownTeams = backend.enabled ? draftTeams : match.teams
+  const canEditTeams = !backend.liveMatch || match.hostId === me.id
+  const shownTeams = backend.liveMatch ? draftTeams : match.teams
   const { a, b } = shownTeams
 
   const avgA = teamAvg(match.players, a, match.sport)
@@ -51,7 +51,7 @@ export default function TeamScreen() {
   const balanced = a.length === half && b.length === half
   const readyCount = match.players.filter((p) => match.teamReady[p.id]).length
   const iAmReady = !!match.teamReady[me.id]
-  const hasUnsavedTeams = backend.enabled && (
+  const hasUnsavedTeams = backend.liveMatch && (
     a.join('|') !== match.teams.a.join('|') || b.join('|') !== match.teams.b.join('|')
   )
   /** 격차가 작을수록 100에 가까운 균형 점수 */
@@ -68,14 +68,14 @@ export default function TeamScreen() {
     const next = to === 'a'
       ? { a: nextTo, b: nextFrom }
       : { a: nextFrom, b: nextTo }
-    if (backend.enabled) setDraftTeams(next)
+    if (backend.liveMatch) setDraftTeams(next)
     else setTeams(next.a, next.b)
   }
 
   const applyRecommended = () => {
     if (!canEditTeams) return
     const r = recommendTeams(match.players, match.sport)
-    if (backend.enabled) setDraftTeams(r)
+    if (backend.liveMatch) setDraftTeams(r)
     else setTeams(r.a, r.b)
   }
 
@@ -300,7 +300,7 @@ export default function TeamScreen() {
       </div>
 
       <div className="stack" style={{ gap: 8, padding: '12px 18px calc(16px + var(--safe-bottom))', borderTop: '1px solid var(--line)' }}>
-        {backend.enabled && (
+        {backend.liveMatch && (
           <button className="btn ghost" style={{ width: '100%', color: 'var(--red)' }} onClick={cancelActiveMatch}>
             매칭 취소
           </button>

@@ -3,158 +3,200 @@ import { useNavigate } from 'react-router-dom'
 import VenueMap, { type MapMarker } from '../components/VenueMap'
 import VenueSheet from '../components/VenueSheet'
 import RankTicker from '../components/RankTicker'
-import { useApp } from '../store/useApp'
-import { HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
-import { QUICK_RADIUS_M, SPORTS, tierOf } from '../lib/game'
-import type { SportId } from '../types'
 import { activeMatchPath } from '../components/ui'
+import { HOME, HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
+import { QUICK_RADIUS_M, SPORTS, distanceMeters, tierOf } from '../lib/game'
+import { useApp } from '../store/useApp'
+import type { MatchMode, SportId } from '../types'
+
+const MAP_SPORTS: SportId[] = ['badminton', 'tennis', 'tabletennis', 'basketball']
+
+/**
+ * 매칭 이후 화면을 확인하기 위한 테스트 버튼을 보일지.
+ * 개발 서버에서는 늘 보이고, 배포본에서는 주소에 ?test 를 붙였을 때만 나온다.
+ * (심사용 데모 화면에 테스트 버튼이 남지 않게 한다.)
+ */
+function testToolsEnabled() {
+  if (import.meta.env.DEV) return true
+  if (typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).has('test')
+}
 
 export default function MapScreen() {
-  const me = useApp((s) => s.me)
-  const coords = useApp((s) => s.coords)
-  const account = useApp((s) => s.account)
-  const match = useApp((s) => s.match)
+  const me = useApp((state) => state.me)
+  const coords = useApp((state) => state.coords)
+  const account = useApp((state) => state.account)
+  const match = useApp((state) => state.match)
+  const forceDemoMatch = useApp((state) => state.forceDemoMatch)
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<SportId | 'all'>('all')
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [sport, setSport] = useState<SportId | 'all'>('all')
   const [filterOpen, setFilterOpen] = useState(false)
+  const [testOpen, setTestOpen] = useState(false)
   const nav = useNavigate()
 
+  const isAll = sport === 'all'
   const interests = account?.interests ?? []
+  /** '전체'일 때 내 티어·1위 같은 요약에 쓸 대표 종목 */
+  const primarySport: SportId = isAll ? (interests[0] ?? 'badminton') : sport
 
   const venues = useMemo(
-    () => (filter === 'all' ? VENUES : VENUES.filter((v) => v.sports.includes(filter))),
-    [filter],
+    () => (isAll ? VENUES : VENUES.filter((venue) => venue.sports.includes(sport))),
+    [sport, isAll],
   )
 
-  // 네이버 오버레이 동기화 effect가 이 배열을 의존하므로 참조를 고정한다.
-  const markers: MapMarker[] = useMemo(
-    () =>
-      venues.map((v) => {
-        const primary = (filter !== 'all' ? filter : v.sports[0]) as SportId
-        const s = SPORTS[primary]
-        const top = leaderboardOf(v.id, primary)[0]
-        return {
-          id: v.id, lat: v.lat, lng: v.lng,
-          emoji: s.emoji, color: s.color,
-          label: v.name.length > 10 ? v.name.slice(0, 9) + '…' : v.name,
-          hot: HOT_VENUE_IDS.includes(v.id),
-          tierColor: top ? tierOf(top.elo[primary]).color : '#8296B4',
-        }
-      }),
-    [venues, filter],
-  )
+  const markers: MapMarker[] = useMemo(() => {
+    const mapped = venues.map((venue) => {
+      // '전체'에서는 그 체육관의 대표 종목으로 아이콘과 순위를 보여준다.
+      const shown: SportId = isAll ? venue.sports[0] : sport
+      const meta = SPORTS[shown]
+      const top = leaderboardOf(venue.id, shown)[0]
+      return {
+        id: venue.id,
+        lat: venue.lat,
+        lng: venue.lng,
+        emoji: isAll ? '' : meta.emoji,
+        sportLabel: meta.label,
+        color: meta.color,
+        label: venue.name.length > 10 ? `${venue.name.slice(0, 9)}…` : venue.name,
+        fullLabel: venue.name,
+        hot: HOT_VENUE_IDS.includes(venue.id),
+        tierColor: top ? tierOf(top.elo[shown]).color : '#8296B4',
+        elo: top?.elo[shown] ?? 1200,
+        crowned: false,
+        // 필터와 무관한 전체 목록 기준 번호. 3D 건물을 고르게 나눠 준다.
+        seat: VENUES.indexOf(venue),
+      }
+    })
+    const highestElo = Math.max(...mapped.map((marker) => marker.elo))
+    return mapped.map((marker) => ({ ...marker, crowned: marker.elo === highestElo }))
+  }, [venues, sport, isAll])
 
-  const active = VENUES.find((v) => v.id === activeId) ?? null
-  const bestElo = Math.max(...Object.values(me.elo))
-  const tier = tierOf(bestElo)
+  const active = venues.find((venue) => venue.id === activeId) ?? null
+  const detailVenue = VENUES.find((venue) => venue.id === detailId) ?? null
+  const playerTier = tierOf(me.elo[primarySport])
+  const quickMode = SPORTS[primarySport].modes[0]
+
+  // 경진대회 지도는 강남 거점을 먼저 보여준다. 실제 위치가 강남 생활권이면
+  // 그대로 쓰고, 멀리 있으면 데모 스폰 지점만 지도 연출에 사용한다.
+  const mapPosition = distanceMeters(coords, HOME) <= QUICK_RADIUS_M * 2 ? coords : HOME
+
+  const selectSport = (next: SportId | 'all') => {
+    setSport(next)
+    setActiveId(null)
+    setDetailId(null)
+    setFilterOpen(false)
+  }
+
+  // 한 번 누르면 바로 상세 창이 열린다. 지도는 focus 를 따라 거점을
+  // 왼쪽으로 옮기고, 오른쪽에 창이 펼쳐진다.
+  const selectVenue = (id: string) => {
+    setActiveId(id)
+    setDetailId(id)
+  }
+
+  const closeVenue = () => {
+    setActiveId(null)
+    setDetailId(null)
+  }
+
+  /**
+   * 매칭 이후 화면을 보기 위한 테스트 매치.
+   * 진행 중인 매치가 있어도 밀어내고, 서버 대신 NPC가 자리를 채운다.
+   * 종목과 인원은 고른 대로 연다(단식은 팀 구성 화면을 건너뛴다).
+   */
+  const startTestMatch = (target: SportId, mode: MatchMode) => {
+    forceDemoMatch(target, mode)
+    setTestOpen(false)
+    nav('/queue')
+  }
+
+  const startMatch = () => {
+    if (match) {
+      nav(activeMatchPath(match.phase))
+      return
+    }
+    // '전체'에서는 종목을 넘기지 않고 매칭 설정 화면에서 고르게 한다.
+    if (active) {
+      nav(`/queue/new?venue=${active.id}${isAll ? '' : `&sport=${sport}`}`)
+      return
+    }
+    nav(`/queue/new?quick=1${isAll ? '' : `&sport=${sport}`}`)
+  }
 
   return (
-    <>
-      {/* 상단 바 — 플레이어 요약(축소) + 종목 필터 버튼 */}
-      <div
-        style={{
-          position: 'absolute', top: 10, left: 12, right: 12, zIndex: 36,
-          display: 'flex', gap: 8, alignItems: 'stretch',
-        }}
-      >
-        <button
-          onClick={() => nav('/profile')}
-          aria-label="내 프로필 열기"
-          style={{
-            flex: 1, minWidth: 0,
-            display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-            background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(16px)',
-            border: '1px solid var(--line)', borderRadius: 12,
-            boxShadow: '0 3px 10px rgba(18,52,32,0.1)',
-            textAlign: 'left',
-          }}
-        >
-          <div className="avatar sm">{me.avatar}</div>
-          <div className="stack grow" style={{ gap: 1, minWidth: 0 }}>
-            <strong
-              style={{
-                fontSize: 12.5, lineHeight: 1.2,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}
-            >
-              {me.nickname}
-            </strong>
-            <span className="mono" style={{ fontSize: 10, color: tier.color, fontWeight: 800 }}>
-              {tier.name} {bestElo}
-              <span style={{ color: 'var(--muted)', fontWeight: 600 }}> · {me.wins}승 {me.losses}패</span>
-            </span>
-          </div>
-          <span style={{ fontSize: 14, color: 'var(--dim)', flexShrink: 0 }}>›</span>
-        </button>
+    <main className="map-screen">
+      <VenueMap
+        center={HOME}
+        me={mapPosition}
+        markers={markers}
+        activeId={activeId}
+        onMarkerClick={selectVenue}
+        focus={active ? { lat: active.lat, lng: active.lng } : null}
+      />
 
-        <button
-          onClick={() => setFilterOpen((o) => !o)}
-          aria-label="종목 필터"
-          aria-expanded={filterOpen}
-          style={{
-            width: 50, flexShrink: 0,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
-            background: 'rgba(255,255,255,0.94)', backdropFilter: 'blur(16px)',
-            border: `1px solid ${filter === 'all' ? 'var(--line)' : SPORTS[filter].color}`,
-            borderRadius: 12,
-            boxShadow: '0 3px 10px rgba(18,52,32,0.1)',
-          }}
-        >
-          <span style={{ fontSize: 17, lineHeight: 1 }}>
-            {filter === 'all' ? '🏟️' : SPORTS[filter].emoji}
-          </span>
-          <span
-            style={{
-              fontSize: 8, lineHeight: 1,
-              color: filter === 'all' ? 'var(--muted)' : SPORTS[filter].color,
-              transform: filterOpen ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.18s ease',
-            }}
+      <div className="map-hud-top">
+        <div className="map-wordmark" aria-label="MATCHPOINT">MATCHPOINT</div>
+
+        <div className="map-summary-row">
+          <div className="map-summary-card">
+            <button className="player-summary" onClick={() => nav('/profile')} aria-label="내 프로필 열기">
+              <span className="player-summary__avatar" aria-hidden="true">
+                <img src="/map/player-dino.webp" alt="" />
+              </span>
+              <span className="player-summary__identity">
+                <strong>{me.nickname}</strong>
+                <span className="mono" style={{ color: playerTier.color }}>
+                  {playerTier.name} {me.elo[primarySport]}
+                </span>
+              </span>
+            </button>
+          </div>
+
+          <button
+            className="sport-filter-trigger"
+            onClick={() => setFilterOpen((open) => !open)}
+            aria-label="지도 종목 변경"
+            aria-expanded={filterOpen}
           >
-            ▼
-          </span>
-        </button>
+            <span aria-hidden="true">{isAll ? '🏟️' : SPORTS[sport].emoji}</span>
+            <small>{isAll ? '전체' : SPORTS[sport].label}</small>
+          </button>
+        </div>
+
+        <RankTicker />
       </div>
 
-      {/* 종목별 1위 전광판 */}
-      {!active && <RankTicker />}
-
-      {/* 필터 드롭다운 */}
       {filterOpen && (
         <>
-          <div
-            onClick={() => setFilterOpen(false)}
-            style={{ position: 'absolute', inset: 0, zIndex: 35 }}
-          />
-          <div
-            className="fade-in"
-            style={{
-              position: 'absolute', top: 60, right: 12, width: 172, zIndex: 38,
-              background: '#fff', border: '1px solid var(--line)', borderRadius: 14,
-              boxShadow: '0 12px 28px rgba(18,52,32,0.22)', overflow: 'hidden',
-            }}
-          >
-            {(['all', 'tennis', 'badminton', 'tabletennis', 'basketball'] as const).map((f, i) => {
-              const on = filter === f
-              const s = f === 'all' ? null : SPORTS[f]
-              const rec = f !== 'all' && interests.includes(f)
+          <button className="map-menu-scrim" onClick={() => setFilterOpen(false)} aria-label="종목 메뉴 닫기" />
+          <div className="sport-filter-menu fade-in" role="menu" aria-label="지도 종목">
+            <button
+              role="menuitemradio"
+              aria-checked={isAll}
+              className={isAll ? 'is-selected' : ''}
+              onClick={() => selectSport('all')}
+            >
+              <span aria-hidden="true">🏟️</span>
+              <span>전체</span>
+              {isAll && <b aria-hidden="true">✓</b>}
+            </button>
+
+            {MAP_SPORTS.map((id) => {
+              const meta = SPORTS[id]
+              const selected = id === sport
               return (
                 <button
-                  key={f}
-                  onClick={() => { setFilter(f); setActiveId(null); setFilterOpen(false) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 9, width: '100%',
-                    padding: '11px 12px',
-                    borderTop: i === 0 ? 'none' : '1px solid var(--line)',
-                    background: on ? (s ? `${s.color}16` : 'var(--court-soft)') : 'transparent',
-                    color: on ? (s?.color ?? 'var(--court)') : 'var(--text)',
-                    fontWeight: on ? 800 : 600, fontSize: 13,
-                  }}
+                  key={id}
+                  role="menuitemradio"
+                  aria-checked={selected}
+                  className={selected ? 'is-selected' : ''}
+                  onClick={() => selectSport(id)}
                 >
-                  <span style={{ fontSize: 16 }}>{s ? s.emoji : '🏟️'}</span>
-                  <span className="grow" style={{ textAlign: 'left' }}>{s ? s.label : '전체'}</span>
-                  {rec && <span style={{ color: 'var(--gold)', fontSize: 10 }}>★</span>}
-                  {on && <span style={{ fontSize: 12 }}>✓</span>}
+                  <span aria-hidden="true">{meta.emoji}</span>
+                  <span>{meta.label}</span>
+                  {interests.includes(id) && <small>관심 종목</small>}
+                  {selected && <b aria-hidden="true">✓</b>}
                 </button>
               )
             })}
@@ -162,42 +204,69 @@ export default function MapScreen() {
         </>
       )}
 
-      <VenueMap
-        center={coords}
-        me={coords}
-        markers={markers}
-        activeId={activeId}
-        onMarkerClick={(id) => setActiveId(id)}
-        focus={active ? { lat: active.lat, lng: active.lng } : null}
-      />
+      {testToolsEnabled() && (
+        <>
+          <button
+            className={`map-test-button${testOpen ? ' is-open' : ''}`}
+            onClick={() => setTestOpen((open) => !open)}
+            aria-expanded={testOpen}
+          >
+            <span aria-hidden="true">🧪</span>
+            <span>테스트 매칭</span>
+          </button>
 
-      {/* 진행 중인 매칭이 있으면 복귀 배너, 없으면 빠른 매칭 버튼 */}
-      {!active && (
-        <div style={{ position: 'absolute', left: 14, right: 14, bottom: 16, zIndex: 35 }}>
-          {match ? (
-            <button
-              className="btn gold"
-              style={{ width: '100%' }}
-              onClick={() => nav(activeMatchPath(match.phase))}
-            >
-              ⚡ 진행 중인 매칭으로 돌아가기
-            </button>
-          ) : (
-            <button
-              className="btn primary"
-              style={{ width: '100%', height: 58, fontSize: 16 }}
-              onClick={() => nav('/queue/new?quick=1')}
-            >
-              ⚡ 빠른 매칭 시작
-              <span style={{ fontWeight: 600, opacity: 0.85, fontSize: 12.5 }}>
-                · 주변 {QUICK_RADIUS_M / 1000}km 플레이어와 매칭
-              </span>
-            </button>
+          {testOpen && (
+            <>
+              <button className="map-menu-scrim" onClick={() => setTestOpen(false)} aria-label="테스트 메뉴 닫기" />
+              <div className="test-match-menu fade-in" role="menu" aria-label="테스트 매칭 종목">
+                <span className="label">종목 · 인원 선택</span>
+                {MAP_SPORTS.map((id) => {
+                  const meta = SPORTS[id]
+                  return (
+                    <div key={id} className={`test-match-row${id === sport ? ' is-current' : ''}`}>
+                      <span className="test-match-row__name">
+                        <span aria-hidden="true">{meta.emoji}</span>
+                        {meta.label}
+                      </span>
+                      <span className="test-match-row__modes">
+                        {meta.modes.map((mode) => (
+                          <button key={mode} role="menuitem" onClick={() => startTestMatch(id, mode)}>
+                            {mode}
+                          </button>
+                        ))}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
-        </div>
+        </>
       )}
 
-      {active && <VenueSheet venue={active} onClose={() => setActiveId(null)} />}
-    </>
+      <div className="quick-match-dock">
+        <button className={`quick-match-button ${match ? 'is-active-match' : ''}`} onClick={startMatch}>
+          <span className="quick-match-button__icon" aria-hidden="true">
+            {match ? '⚡' : isAll ? '🏟️' : SPORTS[sport].emoji}
+          </span>
+          <span className="quick-match-button__copy">
+            <strong>
+              {match
+                ? '진행 중인 매칭으로 돌아가기'
+                : active
+                  ? `${active.name}에서 매칭`
+                  : `${SPORTS[primarySport].label} ${quickMode} 매칭 시작`}
+            </strong>
+            {!match && (
+              <small>
+                {active ? '다른 거점을 눌러 변경' : `주변 ${QUICK_RADIUS_M / 1000}km 빠른 매칭`}
+              </small>
+            )}
+          </span>
+        </button>
+      </div>
+
+      {detailVenue && <VenueSheet venue={detailVenue} onClose={closeVenue} />}
+    </main>
   )
 }

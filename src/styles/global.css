@@ -246,6 +246,345 @@ a { color: inherit; text-decoration: none; }
 .map-wrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .map-canvas { position: absolute; inset: 0; }
 
+/* ───────────── MapLibre 게임 지도 ───────────── */
+
+.maplibre-map-wrap {
+  isolation: isolate;
+  background: linear-gradient(180deg, #eaf2f6 0%, #f8fbfc 100%);
+}
+.maplibre-canvas,
+.maplibre-canvas .maplibregl-canvas-container,
+.maplibre-canvas .maplibregl-canvas { width: 100%; height: 100%; }
+.maplibre-canvas .maplibregl-canvas { outline: none; }
+.maplibre-map-wrap .maplibregl-ctrl-bottom-left {
+  left: 6px;
+  bottom: 82px;
+  z-index: 24;
+}
+.maplibre-map-wrap .maplibregl-ctrl-attrib {
+  color: #52646f;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+}
+.map-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(240, 247, 252, 0.34) 0%, transparent 23%),
+    radial-gradient(110% 80% at 50% 48%, transparent 58%, rgba(217, 230, 238, 0.34) 100%);
+}
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 27;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #416052;
+  font-size: 12px;
+  font-weight: 700;
+  background: linear-gradient(180deg, rgba(245, 250, 252, 0.96), rgba(236, 245, 240, 0.94));
+}
+
+.venue-entity {
+  position: relative;
+  width: 142px;
+  height: 138px;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  color: var(--venue-color, var(--court));
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* 거점의 빛기둥과 바닥 원은 three.js 3D 레이어가 그린다. */
+.venue-building {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  transform: translateX(-50%) scale(0.92);
+  transform-origin: 50% 88%;
+  filter: drop-shadow(0 10px 8px rgba(60, 79, 89, 0.3));
+  transition: transform 0.22s cubic-bezier(0.2, 1.2, 0.4, 1), filter 0.22s ease;
+  pointer-events: none;
+}
+.venue-sport-badge {
+  position: absolute;
+  left: 50%;
+  top: 45px;
+  width: 29px;
+  height: 29px;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--venue-color, var(--court));
+  box-shadow: 0 2px 9px rgba(31, 50, 40, 0.34), 0 0 13px currentColor;
+  font-size: 15px;
+  line-height: 1;
+  pointer-events: none;
+}
+.venue-crown {
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  z-index: 3;
+  transform: translateX(-50%) translateY(6px) scale(0.72);
+  opacity: 0;
+  color: #f8b913;
+  font-size: 31px;
+  line-height: 1;
+  text-shadow: 0 2px 0 #fff3ae, 0 0 13px rgba(248, 185, 19, 0.78);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.venue-label {
+  position: absolute;
+  left: calc(50% + 39px);
+  top: 31px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 108px;
+  max-width: 154px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 62%, #ffffff);
+  border-radius: 10px;
+  color: #f1fff6;
+  background: rgba(7, 44, 27, 0.94);
+  box-shadow: 0 7px 17px rgba(8, 35, 22, 0.34), 0 0 12px color-mix(in srgb, currentColor 32%, transparent);
+  opacity: 0;
+  transform: translateX(-8px) scale(0.92);
+  transform-origin: left center;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.2s ease;
+}
+.venue-label::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 24px;
+  width: 12px;
+  height: 12px;
+  background: inherit;
+  border-left: inherit;
+  border-bottom: inherit;
+  transform: rotate(45deg);
+}
+.venue-label__name {
+  overflow: hidden;
+  color: #58ee94;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.venue-label__elo {
+  color: #fff;
+  font-family: 'SF Mono', 'Cascadia Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+.venue-entity.is-selected .venue-building {
+  transform: translateX(-50%) scale(1.08);
+  filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
+}
+.venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
+.venue-entity.is-crowned .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.venue-entity.is-hot:not(.is-selected)::after {
+  content: '●';
+  position: absolute;
+  right: 16px;
+  top: 29px;
+  color: #ff7d45;
+  font-size: 10px;
+  text-shadow: 0 0 9px #ff6b39;
+}
+.player-map-marker {
+  position: relative;
+  width: 104px;
+  height: 112px;
+  pointer-events: none;
+}
+.player-platform {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 86px;
+  height: 42px;
+  transform: translateX(-50%);
+  border: 2px solid #39e4f2;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 7%, transparent 8%),
+    repeating-conic-gradient(from 8deg, rgba(87, 237, 255, 0.94) 0 5deg, transparent 5deg 43deg),
+    rgba(34, 210, 238, 0.17);
+  box-shadow: 0 0 0 7px rgba(52, 224, 244, 0.13), 0 0 24px rgba(30, 210, 242, 0.75);
+  animation: playerPulse 2.2s ease-in-out infinite;
+}
+.player-direction {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 11px solid #39e4f2;
+  filter: drop-shadow(0 0 5px #39e4f2);
+}
+.player-dino {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 5px rgba(21, 75, 43, 0.34));
+}
+@keyframes playerPulse {
+  0%, 100% { transform: translateX(-50%) scale(0.94); opacity: 0.84; }
+  50% { transform: translateX(-50%) scale(1.05); opacity: 1; }
+}
+
+.map-location-control {
+  position: absolute;
+  right: 14px;
+  bottom: 92px;
+  z-index: 28;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(201, 215, 206, 0.9);
+  border-radius: 16px;
+  color: var(--court);
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 6px 17px rgba(18, 52, 32, 0.2);
+  backdrop-filter: blur(14px);
+}
+.location-reticle {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px #fff;
+}
+.location-reticle::before,
+.location-reticle::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+}
+.location-reticle::before { left: 8px; top: -6px; width: 2px; height: 30px; }
+.location-reticle::after { left: -6px; top: 8px; width: 30px; height: 2px; }
+
+/* 화면 확인용 테스트 버튼. 진짜 기능과 헷갈리지 않게 점선 테두리를 쓴다. */
+.map-test-button {
+  position: absolute;
+  left: 14px;
+  bottom: 92px;
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px dashed rgba(120, 141, 130, 0.9);
+  border-radius: 999px;
+  color: #4c6357;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 12px rgba(18, 52, 32, 0.14);
+  backdrop-filter: blur(14px);
+  font-size: 12px;
+  font-weight: 700;
+}
+.map-test-button.is-open {
+  border-style: solid;
+  border-color: var(--court);
+  color: var(--court);
+  background: var(--court-soft);
+}
+
+/* 테스트 매칭 종목 고르기. 버튼 바로 위에 펼쳐진다. */
+.test-match-menu {
+  position: absolute;
+  left: 14px;
+  bottom: 134px;
+  /* 닫기용 막(.map-menu-scrim)이 z-index 39 다. 그보다 위에 있어야 눌린다. */
+  z-index: 40;
+  width: 214px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px dashed rgba(120, 141, 130, 0.9);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 10px 26px rgba(18, 52, 32, 0.2);
+  backdrop-filter: blur(14px);
+}
+.test-match-menu .label { padding: 0 2px 4px; }
+.test-match-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 2px 4px 4px;
+  border-radius: 9px;
+}
+/* 지금 지도 필터가 가리키는 종목은 배경으로 표시해 둔다. */
+.test-match-row.is-current { background: var(--court-soft); }
+.test-match-row__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.test-match-row__modes { display: flex; gap: 4px; }
+.test-match-row__modes button {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: 'SF Mono', 'Cascadia Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+}
+.test-match-row__modes button:active {
+  border-color: var(--court);
+  background: var(--court);
+  color: #fff;
+}
+
+@media (max-height: 720px) {
+  .venue-entity { transform-origin: bottom; }
+  .venue-building { width: 116px; height: 116px; }
+  .venue-entity { width: 126px; height: 124px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-platform { animation: none; }
+}
+
 /* 마커 공통 모양. 내장 맵과 네이버 오버레이가 이 스타일을 함께 쓴다. */
 .mk {
   display: flex; flex-direction: column; align-items: center;
@@ -430,7 +769,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--line);
   border-radius: 22px 22px 0 0;
   z-index: 51;
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUp 0.44s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 -16px 40px rgba(18, 52, 32, 0.2);
 }
 @keyframes slideUp { from { transform: translateY(100%) } }
@@ -440,10 +779,256 @@ a { color: inherit; text-decoration: none; }
   flex-shrink: 0;
 }
 
+/* ───────────── 메인 지도 HUD ───────────── */
+
+.map-screen {
+  position: relative;
+  isolation: isolate;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #edf4f7;
+}
+.map-hud-top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 30;
+  height: 158px;
+  padding: 0 14px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(245, 249, 252, 0.97) 0%, rgba(245, 249, 252, 0.72) 70%, transparent 100%);
+}
+.map-wordmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7px;
+  color: #121719;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.9px;
+  text-align: center;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.88);
+}
+.map-summary-row {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 36px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 66px;
+  pointer-events: auto;
+}
+.map-summary-card {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(112px, 0.92fr);
+  align-items: center;
+  border: 1px solid rgba(207, 218, 224, 0.92);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 7px 20px rgba(51, 71, 81, 0.17);
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+.player-summary {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  text-align: left;
+}
+.player-summary__avatar {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dce6df;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fbf9, #e7f1e9);
+  overflow: hidden;
+}
+.player-summary__avatar img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  transform: translateY(2px);
+}
+.player-summary__identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.player-summary__identity strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-summary__identity .mono {
+  font-size: 10px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+.summary-divider {
+  width: 1px;
+  height: 36px;
+  background: #dfe7e2;
+}
+.local-champion {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+}
+.local-champion__crown {
+  flex-shrink: 0;
+  color: #eaaa00;
+  font-size: 28px;
+  line-height: 1;
+  text-shadow: 0 2px 0 #fff1a6, 0 0 9px rgba(234, 170, 0, 0.35);
+}
+.local-champion > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.local-champion strong {
+  overflow: hidden;
+  font-size: 10.5px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.local-champion .mono {
+  color: var(--court);
+  font-size: 11px;
+  font-weight: 900;
+}
+.sport-filter-trigger {
+  flex: 0 0 62px;
+  width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid rgba(207, 218, 224, 0.92);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.93);
+  box-shadow: 0 7px 20px rgba(51, 71, 81, 0.17);
+  backdrop-filter: blur(16px);
+}
+.sport-filter-trigger > span { font-size: 23px; line-height: 1; }
+.sport-filter-trigger small { color: var(--muted); font-size: 8px; font-weight: 850; }
+.map-menu-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 39;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}
+.sport-filter-menu {
+  position: absolute;
+  top: 108px;
+  right: 14px;
+  z-index: 40;
+  width: 184px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 16px 34px rgba(18, 52, 32, 0.24);
+  backdrop-filter: blur(18px);
+}
+.sport-filter-menu > button {
+  width: 100%;
+  min-height: 47px;
+  display: grid;
+  grid-template-columns: 25px 1fr auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.sport-filter-menu > button:first-child { border-top: 0; }
+.sport-filter-menu > button.is-selected { color: var(--court); background: var(--court-soft); }
+.sport-filter-menu > button small { color: var(--gold); font-size: 8px; font-weight: 800; }
+.sport-filter-menu > button b { font-size: 11px; }
+.quick-match-dock {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  z-index: 30;
+  pointer-events: none;
+}
+.quick-match-button {
+  width: 100%;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 18px;
+  border: 2px solid #30df7a;
+  border-radius: 17px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(39, 231, 123, 0.32), transparent 45%),
+    linear-gradient(180deg, #087b39 0%, #045b2a 100%);
+  box-shadow:
+    0 0 0 3px rgba(25, 195, 93, 0.17),
+    0 9px 25px rgba(4, 83, 39, 0.38),
+    inset 0 0 18px rgba(39, 236, 121, 0.2);
+  text-align: left;
+  pointer-events: auto;
+}
+.quick-match-button.is-active-match {
+  border-color: #f7be32;
+  color: #2d230c;
+  background: linear-gradient(135deg, #f6bd32, #ff9f1f);
+  box-shadow: 0 9px 25px rgba(200, 126, 16, 0.35);
+}
+.quick-match-button__icon { flex-shrink: 0; font-size: 25px; line-height: 1; }
+.quick-match-button__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.quick-match-button__copy strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-match-button__copy small { font-size: 9.5px; font-weight: 700; opacity: 0.76; }
+
 /* ───────────── LED 전광판 티커 ───────────── */
 
 .ticker {
-  position: absolute; left: 12px; right: 12px; top: 62px; z-index: 33;
+  position: absolute; left: 14px; right: 14px; top: 110px; z-index: 33;
   height: 38px; border-radius: 9px; overflow: hidden;
   background: linear-gradient(180deg, #0e2b1a 0%, #071510 100%);
   border: 1px solid rgba(120, 220, 150, 0.35);
@@ -480,6 +1065,13 @@ a { color: inherit; text-decoration: none; }
   font-size: 13px; font-weight: 800; letter-spacing: 0.3px;
   border-right: 1px dashed rgba(120, 220, 150, 0.22);
 }
+.ticker-focus { min-width: 430px; justify-content: center; }
+.ticker-chevron {
+  color: #23dc72;
+  font-size: 17px;
+  letter-spacing: -4px;
+  text-shadow: 0 0 9px rgba(35, 220, 114, 0.78);
+}
 .ticker-sport { color: #6fdc95; text-shadow: 0 0 8px rgba(111, 220, 149, 0.65); }
 .ticker-crown { font-size: 12px; }
 
@@ -515,6 +1107,28 @@ a { color: inherit; text-decoration: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .ticker-track { animation: none; }
+}
+
+@media (max-width: 390px) {
+  .map-hud-top { padding: 0 10px; }
+  .map-summary-row { left: 10px; right: 10px; }
+  .map-summary-card { grid-template-columns: minmax(0, 1fr) 1px minmax(102px, 0.82fr); }
+  .player-summary__avatar { flex-basis: 42px; width: 42px; height: 42px; }
+  .player-summary__avatar img { width: 46px; height: 46px; }
+  .local-champion__crown { font-size: 23px; }
+  .local-champion strong { font-size: 9.5px; }
+  .sport-filter-trigger { flex-basis: 56px; width: 56px; }
+  .ticker { left: 10px; right: 10px; }
+}
+
+@media (max-height: 720px) {
+  .map-hud-top { height: 122px; }
+  .map-wordmark { display: none; }
+  .map-summary-row { top: 8px; height: 60px; }
+  .ticker { top: 76px; }
+  .sport-filter-menu { top: 72px; }
+  .quick-match-button { min-height: 56px; }
+  .quick-match-button__copy small { display: none; }
 }
 
 /* ───────────── 지도 위 체육관 팝업 (게임 HUD) ───────────── */
@@ -591,9 +1205,919 @@ a { color: inherit; text-decoration: none; }
   background: var(--bg);
   z-index: 60;
   display: flex; flex-direction: column;
-  animation: slideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideIn 0.46s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes slideIn { from { transform: translateX(100%) } }
+
+/* ───────── 매칭 무대 (경기장 배경 + 위아래로 마주 선 선수들) ───────── */
+
+/* 코트 모델이 흰 바탕 위에 떠 보이도록 배경을 비운다. */
+.arena { background: #ffffff; }
+
+/* 멀찍이서 천천히 도는 코트. 배경이라 조작을 받지 않는다. */
+.court-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.55;
+  pointer-events: none;
+  /* 코트를 키운 만큼 가장자리 페이드도 넓혀 잘려 보이지 않게 한다. */
+  -webkit-mask-image: radial-gradient(130% 86% at 50% 44%, #000 40%, transparent 100%);
+  mask-image: radial-gradient(130% 86% at 50% 44%, #000 40%, transparent 100%);
+}
+.court-stage canvas { display: block; }
+/* 등장 연출 동안에는 코트가 주인공이라 흐림 없이 또렷하게 둔다. */
+.court-stage { transition: opacity 0.7s ease; }
+.arena:not(.is-staged) .court-stage { opacity: 1; }
+
+/* 무대 위 요소는 모두 코트보다 앞에 둔다. */
+.arena > .topbar,
+.arena > .arena-stage,
+.arena > .arena-dock {
+  position: relative;
+  z-index: 1;
+}
+.arena > .topbar {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.arena-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 선수 줄. 위는 상대, 아래는 우리 팀.
+   좌우로 조금씩 어긋나게 두어 코트 안에 서 있는 원근감을 준다. */
+.arena-row {
+  flex-shrink: 0;
+  display: flex;
+  gap: 14px;
+  padding: 6px 22px;
+}
+.arena-row.is-away {
+  justify-content: flex-end;
+  /* 안쪽(먼 곳)에 선 팀이라 조금 작게 보인다. */
+  font-size: 0.88em;
+  opacity: 0.94;
+}
+.arena-row.is-home { justify-content: flex-start; }
+
+.arena-player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.arena-player__avatar {
+  display: grid;
+  place-items: center;
+  width: 3.4em;
+  height: 3.4em;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: #fff;
+  box-shadow: 0 6px 14px rgba(18, 52, 32, 0.16);
+  font-size: 1.7em;
+  line-height: 1;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.arena-player__name {
+  max-width: 4.6em;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.65em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 시간 투표를 마친 선수는 테두리에 불이 들어온다. */
+.arena-player.is-voted .arena-player__avatar {
+  border-color: var(--court-2);
+  box-shadow: 0 6px 14px rgba(18, 52, 32, 0.16), 0 0 0 4px rgba(70, 160, 92, 0.18);
+}
+.arena-player.is-voted .arena-player__name { color: var(--court); }
+
+/* 말풍선. 우리 팀은 머리 위, 상대는 발밑에 떠서 상단바를 가리지 않는다. */
+.arena-bubble {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  z-index: 3;
+  /* 기준 상자가 아바타 한 칸이라 그대로 두면 폭이 40px 남짓으로 눌려
+     글자가 한 줄에 하나씩 세로로 쌓인다. 내용 크기로 잡고 최대만 막는다. */
+  width: max-content;
+  max-width: 150px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(18, 52, 32, 0.18);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.arena-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  border: inherit;
+  border-top: 0;
+  border-left: 0;
+  background: inherit;
+  transform: translate(-50%, -55%) rotate(45deg);
+}
+.arena-row.is-away .arena-bubble {
+  bottom: auto;
+  top: calc(100% + 7px);
+}
+.arena-row.is-away .arena-bubble::after {
+  top: auto;
+  bottom: 100%;
+  transform: translate(-50%, 55%) rotate(225deg);
+}
+
+/* 가운데 선택 창 */
+.arena-panel {
+  flex: 1;
+  min-height: 0;
+  margin: 4px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(214, 230, 218, 0.9);
+  border-radius: 18px;
+  /* 뒤에서 도는 코트가 어렴풋이 비치는 정도. 읽는 데 방해되면 안 된다. */
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 14px 34px rgba(18, 52, 32, 0.12);
+}
+.arena-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* 채팅 로그 — 입력줄 위로 펼쳐진다. */
+.arena-log-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgba(18, 52, 32, 0.18);
+}
+.arena-log {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 76px;
+  z-index: 3;
+  max-height: 52%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 -8px 34px rgba(18, 52, 32, 0.2);
+  overflow: hidden;
+}
+.arena-log__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.arena-log__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 14px;
+}
+
+.arena-log-toggle {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  font-size: 19px;
+  line-height: 1;
+}
+.arena-log-toggle.is-open {
+  border-color: var(--court);
+  background: var(--court-soft);
+}
+
+.arena-dock {
+  flex-shrink: 0;
+  z-index: 4;
+  padding: 10px 14px calc(12px + var(--safe-bottom));
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+/* 가로로 돌리라는 안내. 잠깐 떴다가 스스로 사라진다. */
+.arena-rotate-hint {
+  position: absolute;
+  top: 62px;
+  left: 50%;
+  z-index: 5;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 16px rgba(18, 52, 32, 0.16);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: arenaHintOut 0.5s ease 6s forwards;
+}
+@keyframes arenaHintOut { to { opacity: 0; visibility: hidden; } }
+
+/* ───────── 매칭 성사 등장 연출 ───────── */
+
+/* 코트가 코앞까지 다가온 동안 화면 가운데를 덮는 문구. */
+.arena-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  pointer-events: none;
+}
+/* 세 줄이 1초 간격으로 하나씩 뜬다. backwards 라 차례가 오기 전에는 숨어 있다. */
+.arena-hero__sub {
+  padding: 5px 16px;
+  border-radius: 999px;
+  background: var(--court);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  animation: heroSub 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) backwards;
+}
+.arena-hero__title {
+  color: var(--court-deep);
+  font-size: clamp(30px, 8vw, 58px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-shadow: 0 4px 0 #fff, 0 10px 26px rgba(18, 52, 32, 0.32);
+  animation: heroTitle 0.62s cubic-bezier(0.16, 1.7, 0.4, 1) 1s backwards;
+}
+.arena-hero__where {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  animation: heroSub 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 2s backwards;
+}
+/* 코트가 물러나는 것과 같은 박자로 빠진다.
+   카메라가 앞쪽에서 크게 움직이므로 문구도 앞쪽에서 빠르게 옅어져야
+   "같이 사라진다"고 느껴진다(뒤로 갈수록 느려지는 곡선). */
+.arena-hero.is-leaving {
+  animation: heroOut 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes heroSub { from { opacity: 0; scale: 0.7; } }
+@keyframes heroTitle { from { opacity: 0; scale: 0.55; translate: 0 14px; } }
+@keyframes heroOut { to { opacity: 0; scale: 1.35; } }
+
+/* 연출이 끝나면 무대 요소들이 차례로 튀어나온다.
+   backwards 로 두어 지연 중에는 시작 상태(안 보임)에 머문다. */
+.arena:not(.is-staged) .arena-stage,
+.arena:not(.is-staged) .arena-dock,
+.arena:not(.is-staged) .topbar,
+.arena:not(.is-staged) .wide-grid,
+.arena:not(.is-staged) .wide-back,
+.arena:not(.is-staged) .wide-actions,
+.arena:not(.is-staged) .wide-chat-toggle { opacity: 0; }
+
+/* 캐릭터는 한 명씩 순서대로. 지연 시간은 인원수에 맞춰 JS 가 넣어 준다. */
+.arena.is-staged .stage-player,
+.arena.is-staged .arena-player {
+  animation: popIn 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
+}
+/* 선택 창과 조작 버튼은 캐릭터가 다 나온 뒤에 따라 나온다. */
+.arena.is-staged .arena-panel,
+.arena.is-staged .wide-panel {
+  animation: popIn 0.55s cubic-bezier(0.2, 1.5, 0.4, 1) 3s backwards;
+}
+.arena.is-staged .topbar,
+.arena.is-staged .arena-dock,
+.arena.is-staged .wide-back,
+.arena.is-staged .wide-actions,
+.arena.is-staged .wide-chat-toggle {
+  animation: popIn 0.46s cubic-bezier(0.2, 1.4, 0.4, 1) 3.2s backwards;
+}
+@keyframes popIn { from { opacity: 0; scale: 0.82; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .arena.is-staged .stage-player,
+  .arena.is-staged .arena-player,
+  .arena.is-staged .arena-panel,
+  .arena.is-staged .wide-panel,
+  .arena.is-staged .topbar,
+  .arena.is-staged .arena-dock,
+  .arena.is-staged .wide-back,
+  .arena.is-staged .wide-actions,
+  .arena.is-staged .wide-chat-toggle { animation: none; }
+}
+
+/* ═════════ 가로 화면: 대치 구도 ═════════
+   세로와 구조가 아예 다르다. RoomScreen 이 방향을 보고 다른 화면을 그리고,
+   여기서는 그 가로 전용 화면의 모양만 정한다. */
+
+@media (orientation: landscape) {
+  /* 매칭 화면일 때만 휴대폰 폭 제한을 푼다.
+     (.shell 보다 명시도가 높아 데스크톱의 고정 폭도 함께 눌러쓴다) */
+  body.arena-wide .shell {
+    width: 100%;
+    max-width: 1180px;
+  }
+}
+@media (orientation: landscape) and (min-width: 900px) {
+  /* 데스크톱 액자를 가로 무대 비율로 바꾼다. */
+  body.arena-wide .shell { height: min(680px, 94dvh); }
+}
+
+.arena--wide {
+  display: block;
+  padding: 8px 10px 10px;
+}
+/* 가로에서는 코트가 화면의 주인공이다. 세로보다 훨씬 또렷하게 깔고
+   가장자리 페이드도 늦춰 코트 전체가 드러나게 한다. */
+.arena--wide .court-stage {
+  opacity: 0.92;
+  -webkit-mask-image: radial-gradient(145% 105% at 50% 48%, #000 66%, transparent 100%);
+  mask-image: radial-gradient(145% 105% at 50% 48%, #000 66%, transparent 100%);
+}
+.wide-back {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* 왼쪽 선수 · 가운데 창 · 오른쪽 선수+채팅 */
+.wide-grid {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(170px, 224px) minmax(0, 1fr) minmax(196px, 258px);
+  /* 행 높이를 무대 높이에 못 박는다. auto 로 두면 채팅이 쌓일수록
+     칸이 늘어나 화면 전체가 위로 밀려 올라간다. */
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+}
+.wide-side {
+  position: relative;
+  min-width: 0;
+  /* 그리드 칸은 기본이 min-height:auto 라 내용이 넘치면 칸을 밀어낸다. */
+  min-height: 0;
+  /* 말풍선이 가운데 창 위로 떠야 한다. */
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* ── 무대에 선 캐릭터 ── */
+
+.wide-cast {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 위아래로 고르게 벌려 캐릭터마다 말풍선 자리가 남게 한다. */
+  justify-content: space-around;
+  /* 위쪽은 맨 위 캐릭터의 말풍선 자리, 아래쪽은 떠 있는 조작 버튼 자리. */
+  padding: 28px 0 52px;
+}
+.stage-player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.stage-player__stand {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(var(--figure) * 1.3);
+  /* 이모지 글리프는 font-size 보다 크게 그려진다. 상자를 넉넉히 잡지 않으면
+     아래로 삐져나와 닉네임을 밀어내고 정렬이 어긋나 보인다. */
+  height: calc(var(--figure) * 1.34);
+  padding: 0;
+}
+.stage-player__stand:active .stage-player__body { scale: 0.94; }
+/* 발밑 그림자 겸 발판. 캐릭터가 코트에 서 있는 것처럼 보이게 한다. */
+.stage-player__pad {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  z-index: 0;
+  width: calc(var(--figure) * 0.92);
+  height: calc(var(--figure) * 0.26);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(18, 52, 32, 0.22), rgba(18, 52, 32, 0));
+  transform: translateX(-50%);
+  transition: background 0.25s ease;
+}
+/* 연승 중인 선수의 등 뒤 불길.
+   아바타보다 뒤(z-index 0)에 깔려 후광처럼 타오른다. */
+.stage-player__blaze {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  z-index: 0;
+  width: calc(var(--figure) * 1.16);
+  height: calc(var(--figure) * 1.3);
+  /* 위로 갈수록 뾰족해지는 불꽃 모양 */
+  border-radius: 50% 50% 44% 44% / 66% 66% 34% 34%;
+  background:
+    radial-gradient(closest-side at 50% 72%,
+      rgba(255, 236, 170, 0.95) 0%,
+      rgba(255, 170, 60, 0.85) 38%,
+      rgba(240, 88, 30, 0.55) 66%,
+      rgba(200, 40, 20, 0) 100%);
+  filter: blur(5px);
+  transform: translateX(-50%);
+  /* 발밑을 축으로 흔들려야 불길이 위로 솟는 것처럼 보인다. */
+  transform-origin: 50% 100%;
+  animation: blaze 1.05s ease-in-out infinite;
+  pointer-events: none;
+}
+/* 불길이 숨 쉬듯 넘실거린다. 위쪽이 더 크게 흔들리도록 아래를 기준으로 잡는다. */
+@keyframes blaze {
+  0%, 100% { transform: translateX(-50%) scale(1, 1); opacity: 0.82; }
+  35% { transform: translateX(-50%) scale(0.94, 1.09); opacity: 1; }
+  70% { transform: translateX(-50%) scale(1.05, 0.96); opacity: 0.9; }
+}
+/* 발판도 함께 달아오른다.
+   투표 완료(초록)보다 뒤에 정의돼 있으므로 한 단계 더 좁게 잡아 불빛이 이긴다. */
+.wide-cast .stage-player.is-ablaze .stage-player__pad {
+  background: radial-gradient(closest-side, rgba(255, 140, 40, 0.6), rgba(255, 140, 40, 0));
+}
+.stage-player.is-ablaze .stage-player__body {
+  filter:
+    drop-shadow(0 6px 6px rgba(120, 40, 10, 0.3))
+    drop-shadow(0 0 14px rgba(255, 150, 50, 0.75));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-player__blaze { animation: none; }
+}
+
+.stage-player__body {
+  position: relative;
+  z-index: 1;
+  margin-bottom: calc(var(--figure) * 0.06);
+  font-size: var(--figure);
+  line-height: 1;
+  filter: drop-shadow(0 6px 6px rgba(18, 52, 32, 0.22));
+  animation: stageIdle 3.4s ease-in-out infinite;
+}
+/* 서로 마주 보게 왼쪽 팀만 뒤집는다. 이모지 동물은 대개 왼쪽을 본다. */
+.wide-cast.is-home .stage-player__body { transform: scaleX(-1); }
+/* 같은 팀이 나란히 서면 숨쉬는 박자를 어긋나게 해 인형처럼 보이지 않게 한다. */
+.stage-player:nth-child(2) .stage-player__body { animation-delay: -1.1s; }
+.stage-player:nth-child(3) .stage-player__body { animation-delay: -2.2s; }
+@keyframes stageIdle {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -4%; }
+}
+.stage-player__name {
+  display: block;
+  max-width: calc(var(--figure) * 1.6);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 시간 투표를 마치면 발판에 팀 색 불이 들어온다. */
+.stage-player.is-voted .stage-player__pad {
+  background: radial-gradient(closest-side, var(--court-2), transparent);
+  opacity: 0.55;
+}
+.stage-player.is-voted .stage-player__name { color: var(--court); }
+
+/* 말풍선은 캐릭터 머리 위에 뜬다.
+   가장자리 열이라 가운데를 기준으로 펼치면 화면 밖으로 밀려나므로,
+   왼쪽 진영은 왼쪽에, 오른쪽 진영은 오른쪽에 붙여 안쪽으로 자라게 한다. */
+.stage-player .arena-bubble {
+  top: auto;
+  bottom: calc(100% + 4px);
+  z-index: 6;
+  max-width: 190px;
+}
+.stage-player .arena-bubble::after {
+  top: 100%;
+  bottom: auto;
+}
+.wide-cast.is-home .arena-bubble {
+  left: 8px;
+  transform: none;
+}
+.wide-cast.is-home .arena-bubble::after {
+  left: 26px;
+  transform: translate(-50%, -55%) rotate(45deg);
+}
+.wide-cast.is-away .arena-bubble {
+  left: auto;
+  right: 8px;
+  transform: none;
+}
+.wide-cast.is-away .arena-bubble::after {
+  left: auto;
+  right: 18px;
+  transform: translate(50%, -55%) rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-player__body { animation: none; }
+}
+
+/* 가운데 선택 창 */
+.wide-panel {
+  min-width: 0;
+  min-height: 0;
+  /* 무대 높이를 다 채우지 않고 내용만큼만 차지한 뒤 세로 가운데에 뜬다.
+     늘려 두면 체육관 정보와 날짜가 위로 붙고 가운데가 텅 빈다. */
+  align-self: center;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(214, 230, 218, 0.9);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(5px);
+  box-shadow: 0 16px 40px rgba(18, 52, 32, 0.14);
+}
+.wide-panel__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  /* 창 가운데를 기준으로 모아 둔다. 폭을 다 쓰면 이름은 왼쪽 끝,
+     요금은 오른쪽 끝에 붙어 창이 텅 비어 보인다. */
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.wide-panel__head .stack { text-align: center; }
+.wide-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 22px;
+}
+.wide-price {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 12px;
+  border: 1px solid rgba(70, 160, 92, 0.35);
+  border-radius: 11px;
+  background: var(--court-soft);
+}
+.wide-price small { color: var(--muted); font-size: 9.5px; font-weight: 700; }
+.wide-price b { color: var(--court); font-size: 14px; }
+
+.wide-panel__bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 10px 14px 6px;
+}
+.wide-legend { display: flex; gap: 10px; }
+.wide-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.wide-legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.wide-legend i.is-open { background: #eaf6ec; }
+.wide-legend i.is-picked { background: var(--court); border-color: var(--court); }
+.wide-legend i.is-booked { background: #d3dbd6; }
+.wide-legend i.is-past { background: repeating-linear-gradient(45deg, #eef1ef 0 3px, #ffffff 3px 6px); }
+
+/* 날짜 스트립 (가로용 압축) */
+.wide-days {
+  flex-shrink: 0;
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 0 14px 4px;
+  /* 날짜가 화면보다 적으면 가운데로 모은다. 넘칠 때 center 를 그대로 쓰면
+     왼쪽이 잘려 스크롤로도 못 보게 되므로 safe 를 붙여 막는다. */
+  justify-content: center;
+  justify-content: safe center;
+}
+.wide-day {
+  flex-shrink: 0;
+  width: 42px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.wide-day.is-on { border-color: var(--court); background: var(--court); color: #fff; }
+
+/* 시간 투표 칸. 세로와 같은 방식이고 가로 폭만큼 열을 늘려 잡는다. */
+.wide-slots {
+  /* 남는 공간을 먹지 않는다. 늘리면 날짜와 시간 칸 사이가 벌어진다.
+     대신 창이 넘칠 때는 이 영역만 줄어들며 스크롤된다. */
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-content: start;
+  gap: 7px;
+  padding: 10px 14px 12px;
+}
+
+.wide-panel__foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+  text-align: center;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 왼쪽 아래 매칭 조작 */
+.wide-actions {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+}
+.wide-actions .btn {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+}
+
+/* 오른쪽 아래 채팅 — 버튼으로 열고 닫는다. */
+.wide-chat-toggle {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 16px rgba(18, 52, 32, 0.14);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.wide-chat-toggle.is-open {
+  border-color: var(--court);
+  background: var(--court-soft);
+  color: var(--court);
+}
+.wide-chat {
+  position: absolute;
+  right: 12px;
+  bottom: 60px;
+  z-index: 6;
+  width: min(300px, 42%);
+  /* 무대를 덮지 않도록 높이를 못 박는다. 대화가 쌓여도 안에서만 스크롤된다. */
+  height: min(340px, 62%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(18, 52, 32, 0.2);
+}
+.wide-chat__head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.wide-chat__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 11px;
+}
+.wide-chat__form {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+}
+.wide-chat__form .field { height: 40px; border-radius: 11px; font-size: 13px; }
+.wide-chat__form .btn { width: 44px; height: 40px; padding: 0; border-radius: 11px; }
+
+/* 선수를 누르면 뜨는 개인 전적.
+   캐릭터 안에 놓여 아바타 옆에서 자라난다. */
+/* 바깥을 눌러 닫기 위한 막. 화면을 어둡게 덮지는 않는다 —
+   전적 창은 아바타 옆에 뜨는 작은 말풍선 같은 것이라
+   화면 전체를 가리면 모달처럼 무겁게 느껴진다. */
+.wide-pop-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: transparent;
+  cursor: default;
+}
+/* 창을 연 진영만 막 위로 올려, 아바타에서 나온 창이 가려지지 않게 한다. */
+.wide-side.is-front { z-index: 8; }
+
+.wide-pop {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  transform: translateY(-50%);
+  width: 230px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 20px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(18, 52, 32, 0.28);
+  /* 누른 아바타 쪽을 기준점으로 삼아 그 자리에서 부풀어 오른다. */
+  animation: popFromAvatar 0.32s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.wide-pop.is-home {
+  left: calc(100% - 12px);
+  transform-origin: left center;
+}
+.wide-pop.is-away {
+  right: calc(100% - 12px);
+  transform-origin: right center;
+}
+@keyframes popFromAvatar {
+  from { opacity: 0; scale: 0.35; }
+}
+
+/* 1대1처럼 자리가 넉넉할 때. 캐릭터 바로 아래에 그대로 펼쳐 둔다. */
+.wide-pop.is-inline {
+  position: static;
+  width: 100%;
+  max-width: 190px;
+  margin-top: 6px;
+  padding: 12px 12px 10px;
+  transform: none;
+  animation: none;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 20px rgba(18, 52, 32, 0.12);
+}
+.wide-pop.is-inline .wide-pop__name { font-size: 13.5px; }
+.wide-pop.is-inline .wide-pop__stats { margin-top: 6px; padding-top: 8px; }
+.wide-pop.is-inline .wide-pop__stats b { font-size: 15px; }
+/* 아래에 펼쳐 두면 캐릭터 이름표와 겹쳐 보인다. 창 안의 이름만 남긴다. */
+.wide-cast.has-info .stage-player__name { display: none; }
+.wide-cast.has-info .stage-player { width: 100%; }
+
+/* 연승 표시. 불씨가 옆에서 이글거린다. */
+.streak-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 3px 10px 3px 7px;
+  border: 1px solid rgba(239, 118, 40, 0.45);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff3e6, #ffe6d2);
+  color: #c2540f;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.streak-flag__fire {
+  font-size: 12px;
+  line-height: 1;
+  filter:
+    drop-shadow(0 0 4px rgba(251, 146, 60, 0.95))
+    drop-shadow(0 0 10px rgba(239, 68, 68, 0.55));
+  transform-origin: 50% 85%;
+  animation: flame 1.15s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streak-flag__fire { animation: none; }
+}
+.wide-pop__close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: var(--dim);
+  font-size: 14px;
+  font-weight: 800;
+}
+.wide-pop__face { font-size: 52px; line-height: 1; }
+.wide-pop__name { font-size: 15px; }
+.wide-pop__tier { font-size: 12px; font-weight: 800; }
+.wide-pop__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+.wide-pop__stats span { display: flex; flex-direction: column; gap: 2px; }
+.wide-pop__stats small { color: var(--dim); font-size: 10px; font-weight: 700; }
+.wide-pop__stats b { font-size: 17px; }
+.wide-pop__foot { margin-top: 8px; color: var(--muted); font-size: 11px; font-weight: 600; }
+
+/* 가로인데 세로가 짧은 실제 휴대폰. 덩치를 한 단계 줄인다. */
+@media (orientation: landscape) and (max-height: 480px) {
+  /* 캐릭터 크기는 --figure 하나로 정해지므로 여기서 한 번만 줄이면 된다. */
+  .wide-cast { --figure: 52px !important; padding-top: 22px; }
+  .wide-panel__icon { display: none; }
+  .wide-slots .slot { height: 48px; }
+  .wide-chat { height: 68%; bottom: 56px; }
+}
 
 .topbar {
   display: flex; align-items: center; gap: 12px;
@@ -710,7 +2234,7 @@ a { color: inherit; text-decoration: none; }
 }
 @keyframes spin { to { transform: rotate(360deg) } }
 
-.fade-in { animation: fadeUp 0.35s ease backwards; }
+.fade-in { animation: fadeUp 0.5s ease backwards; }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px) } }
 
 ::-webkit-scrollbar { width: 0; height: 0; }
