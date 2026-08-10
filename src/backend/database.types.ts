@@ -27,6 +27,7 @@ export type QueueStatus = 'waiting' | 'matched' | 'canceled'
 export type SlotStatus = 'open' | 'held' | 'booked' | 'canceled'
 export type TeamSide = 'a' | 'b'
 export type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed'
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
 
 export type Database = {
   public: {
@@ -37,6 +38,8 @@ export type Database = {
           nickname: string
           avatar_url: string | null
           interests: SportCode[]
+          equipped_title_code: string | null
+          onboarding_completed_at: string | null
           created_at: string
           updated_at: string
         }
@@ -45,6 +48,8 @@ export type Database = {
           nickname: string
           avatar_url?: string | null
           interests?: SportCode[]
+          equipped_title_code?: string | null
+          onboarding_completed_at?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -52,6 +57,8 @@ export type Database = {
           nickname?: string
           avatar_url?: string | null
           interests?: SportCode[]
+          equipped_title_code?: string | null
+          onboarding_completed_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -64,6 +71,8 @@ export type Database = {
           wins: number
           losses: number
           played: number
+          current_streak: number
+          best_streak: number
           updated_at: string
         }
         Insert: {
@@ -73,6 +82,8 @@ export type Database = {
           wins?: number
           losses?: number
           played?: number
+          current_streak?: number
+          best_streak?: number
           updated_at?: string
         }
         Update: {
@@ -80,6 +91,8 @@ export type Database = {
           wins?: number
           losses?: number
           played?: number
+          current_streak?: number
+          best_streak?: number
           updated_at?: string
         }
         Relationships: []
@@ -253,6 +266,7 @@ export type Database = {
           rating_before: number | null
           rating_delta: number | null
           rating_after: number | null
+          completed_at: string | null
           joined_at: string
           updated_at: string
         }
@@ -266,6 +280,7 @@ export type Database = {
           rating_before?: number | null
           rating_delta?: number | null
           rating_after?: number | null
+          completed_at?: string | null
           joined_at?: string
           updated_at?: string
         }
@@ -275,6 +290,7 @@ export type Database = {
           paid?: boolean
           rating_delta?: number | null
           rating_after?: number | null
+          completed_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -423,6 +439,82 @@ export type Database = {
         Update: never
         Relationships: []
       }
+      achievement_definitions: {
+        Row: {
+          code: string
+          name: string
+          description: string
+          icon: string
+          metric_code: string
+          target: number
+          title_name: string
+          rarity: AchievementRarity
+          sort_order: number
+          active: boolean
+          hidden: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          name: string
+          description: string
+          icon: string
+          metric_code: string
+          target: number
+          title_name: string
+          rarity: AchievementRarity
+          sort_order?: number
+          active?: boolean
+          hidden?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          description?: string
+          icon?: string
+          metric_code?: string
+          target?: number
+          title_name?: string
+          rarity?: AchievementRarity
+          sort_order?: number
+          active?: boolean
+          hidden?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      player_achievements: {
+        Row: {
+          profile_id: string
+          achievement_code: string
+          progress: number
+          unlocked_at: string | null
+          unlocked_match_id: string | null
+          notified_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          achievement_code: string
+          progress?: number
+          unlocked_at?: string | null
+          unlocked_match_id?: string | null
+          notified_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          progress?: number
+          unlocked_at?: string | null
+          unlocked_match_id?: string | null
+          notified_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -451,7 +543,7 @@ export type Database = {
         Args: {
           p_match_id: string
           p_winner_team: TeamSide
-          p_score?: string | null
+          p_score: string
         }
         Returns: Json
       }
@@ -487,6 +579,41 @@ export type Database = {
           p_match_id: string
         }
         Returns: Json
+      }
+      get_my_achievements: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          code: string
+          name: string
+          description: string
+          icon: string
+          reward_title: string
+          rarity: AchievementRarity
+          target: number
+          progress: number
+          unlocked_at: string | null
+          equipped: boolean
+        }[]
+      }
+      equip_my_title: {
+        Args: {
+          p_achievement_code: string | null
+        }
+        Returns: string | null
+      }
+      is_nickname_available: {
+        Args: {
+          p_nickname: string
+        }
+        Returns: boolean
+      }
+      save_my_profile: {
+        Args: {
+          p_nickname: string
+          p_interests: SportCode[]
+          p_avatar_url?: string | null
+        }
+        Returns: Database['public']['Tables']['profiles']['Row']
       }
     }
     Enums: {
