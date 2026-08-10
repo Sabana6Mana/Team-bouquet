@@ -36,7 +36,7 @@ npm run supabase:start
 `.env.local`에 넣습니다.
 
 ```env
-VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_URL=http://127.0.0.1:55321
 VITE_SUPABASE_PUBLISHABLE_KEY=로컬_publishable_또는_anon_key
 VITE_NAVER_MAP_KEY_ID=
 ```
@@ -48,8 +48,72 @@ npm run dev
 ```
 
 - 앱: <http://localhost:5173>
-- Supabase Studio: <http://127.0.0.1:54323>
+- Supabase Studio: <http://127.0.0.1:55323>
 - 종료: `npm run supabase:stop`
+
+## 카카오 로그인 설정
+
+카카오 로그인 버튼과 콜백 화면은 구현되어 있지만, 저장소에는 실제 OAuth 자격 정보를
+넣지 않습니다. 카카오디벨로퍼스에서 앱을 만든 뒤 **카카오 로그인 사용 설정을 ON**으로
+바꾸고 REST API 키의 Client Secret도 활성화하세요. 동의 항목은 닉네임과 프로필 이미지를
+설정하고, 이메일은 서비스에 필요할 때만 요청하면 됩니다.
+
+카카오디벨로퍼스의 REST API 키에 다음 Redirect URI를 등록합니다.
+
+```text
+http://localhost:55321/auth/v1/callback
+```
+
+호스팅 Supabase도 함께 사용한다면 Dashboard의 Kakao Provider 화면에 표시되는 다음 형태의
+주소도 등록합니다. 정확한 값은 Dashboard에서 복사하세요.
+
+```text
+https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback
+```
+
+프로젝트 루트의 `.env.example`을 `.env`로 복사한 뒤 아래 두 값에 REST API 키와 Client
+Secret을 넣습니다. `.env`는 Git에서 제외되어 있습니다.
+
+```env
+SUPABASE_AUTH_EXTERNAL_KAKAO_CLIENT_ID=카카오_REST_API_키
+SUPABASE_AUTH_EXTERNAL_KAKAO_SECRET=활성화한_Client_Secret
+```
+
+그다음 `supabase/config.toml`의 `[auth.external.kakao]` 블록을 다음처럼 바꿉니다. 자격 정보가
+없는 팀원도 로컬 환경을 실행할 수 있도록 저장소의 기본값은 비활성 상태입니다.
+
+```toml
+[auth.external.kakao]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_KAKAO_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_KAKAO_SECRET)"
+redirect_uri = "http://localhost:55321/auth/v1/callback"
+```
+
+마지막으로 프론트가 준비되지 않은 로그인 버튼을 노출하지 않도록 둔 플래그를 `.env` 또는
+`.env.local`에서 켭니다.
+
+```env
+VITE_KAKAO_LOGIN_ENABLED=true
+```
+
+설정 변경은 Auth 컨테이너를 다시 띄워야 반영됩니다.
+
+```bash
+npm run supabase:stop
+npm run supabase:start
+```
+
+두 종류의 콜백 주소를 혼동하지 마세요.
+
+- 카카오디벨로퍼스 Redirect URI: Supabase Auth의 `/auth/v1/callback`
+- Supabase Redirect 허용 목록: 프론트의 `/auth/callback`
+
+호스팅 프로젝트에서는 Dashboard의 Authentication > Providers에서 Kakao를 활성화하고 같은
+Client ID/Secret을 등록합니다. 카카오 이메일 동의를 사용하지 않는다면 `Allow users without
+an email`도 켜야 합니다. Authentication > URL Configuration에는 실제 배포 프론트 주소의
+`/auth/callback`을 추가하세요. Client Secret과 `service_role` 키는 `VITE_` 환경변수에 넣으면
+안 됩니다.
 
 로컬 DB를 완전히 비우고 현재 migration으로 다시 만들 때는 아래처럼 실행합니다.
 
@@ -66,10 +130,10 @@ Supabase CLI의 `db reset`이 안정적으로 동작하는 환경에서는 `npm 
 로컬 Supabase가 실행된 상태에서 다음 명령을 실행합니다.
 
 ```bash
-npm run verify:mvp
+npm run verify:backend
 ```
 
-스크립트가 일회성 익명 사용자를 만들어 아래 흐름을 자동 확인합니다. 로컬 CLI가 출력하는
+두 검증 스크립트가 격리된 일회성 익명 사용자를 만들어 아래 흐름을 자동 확인합니다. 로컬 CLI가 출력하는
 검증용 service-role 키는 스크립트 안에서만 사용하며 브라우저 번들에는 들어가지 않습니다.
 
 1. 프로필 생성
@@ -78,6 +142,12 @@ npm run verify:mvp
 4. 같은 시간 투표, 참가 확정과 예약 종료 전 결과 입력 차단
 5. 승자·점수 만장일치와 ELO 갱신, 경기 완료
 6. 진행 중 매치 취소와 held 슬롯 반환
+7. 도전과제 해금·진행도·칭호 장착과 직접 쓰기 차단
+8. 동시 결과 확정 및 도전과제/알림의 중복 생성 방지
+
+검증이 끝나면 생성한 사용자·큐·매치·전용 장소를 삭제하고 사용한 슬롯도 원래 상태로
+복구합니다. 기본 매치 흐름만 따로 보려면 `npm run verify:mvp`, 도전과제만 보려면
+`npm run verify:achievements`를 실행합니다.
 
 프론트 프로덕션 빌드는 다음으로 확인합니다.
 
@@ -95,9 +165,10 @@ npm run build
 6. 양쪽에서 같은 시간 슬롯을 선택합니다.
 7. 양쪽에서 참가를 확정하면 경기가 `confirmed` 상태가 됩니다.
 8. 확정한 예약 시간이 실제로 끝나면 `경기 종료 · 결과 입력` 버튼이 활성화됩니다.
-9. 양쪽에서 같은 승리 팀을 고르고 결과/ELO가 동일하게 반영되는지 확인합니다.
+9. 양쪽에서 같은 승리 팀과 같은 점수를 입력하고 결과/ELO가 동일하게 반영되는지 확인합니다.
+10. 프로필의 `도전과제 · 칭호`에서 첫 경기/첫 승리 보상과 칭호 장착을 확인합니다.
 
-결과/ELO까지 바로 확인하려면 브라우저 수동 테스트 대신 `npm run verify:mvp`를 사용하세요.
+결과/ELO와 칭호까지 바로 확인하려면 브라우저 수동 테스트 대신 `npm run verify:backend`를 사용하세요.
 검증 스크립트는 service-role로 테스트 슬롯의 시간만 과거로 옮긴 뒤, 일반 참가자 권한으로
 나머지 결과 흐름을 검증합니다.
 
@@ -125,10 +196,14 @@ Supabase Dashboard에서 다음 설정도 필요합니다.
 ## 주요 파일
 
 - `supabase/migrations/20260803010000_matchpoint_mvp.sql`: 스키마, RLS, RPC
+- `supabase/migrations/20260810010000_achievements_titles.sql`: 도전과제, 칭호, 연승
+- `supabase/migrations/20260810020000_auth_profile_hardening.sql`: 프로필 저장, 닉네임 검증
+- `supabase/migrations/20260810030000_match_completion_hardening.sql`: 점수 형식, 참가자별 경기 완료
 - `supabase/seed.sql`: 체육관과 향후 14일 슬롯
 - `src/backend/`: 타입이 지정된 Supabase 클라이언트와 API
 - `src/context/BackendProvider.tsx`: 세션 복구, 스냅샷 및 Realtime 동기화
 - `scripts/verify-mvp.mjs`: 실제 두 사용자 백엔드 흐름 검증
+- `scripts/verify-achievements.mjs`: 도전과제·칭호·멱등성/RLS 검증
 
 스키마를 변경한 후에는 아래 명령으로 TypeScript 타입을 다시 생성할 수 있습니다.
 
