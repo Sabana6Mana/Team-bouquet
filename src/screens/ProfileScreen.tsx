@@ -32,9 +32,12 @@ export default function ProfileScreen() {
           style={{ gap: 14, borderColor: `${bestTier.color}44`, background: `linear-gradient(160deg, ${bestTier.color}16, transparent)` }}
         >
           <div className="row" style={{ gap: 14 }}>
-            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66` }}>{me.avatar}</div>
+            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66`, overflow: 'hidden' }}>
+              {me.avatarUrl ? <img src={me.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : me.avatar}
+            </div>
             <div className="stack grow" style={{ gap: 6 }}>
               <strong style={{ fontSize: 20 }}>{me.nickname}</strong>
+              {me.title && <span className="profile-title">《{me.title}》</span>}
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                 <span className="chip" style={{ color: bestTier.color, borderColor: `${bestTier.color}55`, background: `${bestTier.color}16` }}>
                   {bestTier.name}
@@ -57,6 +60,15 @@ export default function ProfileScreen() {
             ))}
           </div>
         </div>
+
+        <button className="achievement-entry-card" onClick={() => nav('/achievements')}>
+          <span className="achievement-entry-card__icon" aria-hidden="true">🏆</span>
+          <span className="stack grow" style={{ gap: 3, textAlign: 'left' }}>
+            <strong>도전과제 · 칭호</strong>
+            <small>{me.title ? `현재 《${me.title}》 장착 중` : '경기를 플레이하고 나만의 칭호를 획득하세요'}</small>
+          </span>
+          <span aria-hidden="true">›</span>
+        </button>
 
         {/* 명예 등급 */}
         <div className="card stack" style={{ gap: 12 }}>

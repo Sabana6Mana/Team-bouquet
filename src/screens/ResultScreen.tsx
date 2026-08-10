@@ -9,6 +9,13 @@ import {
 import { TopBar } from '../components/ui'
 import EloBar from '../components/EloBar'
 
+const DEFAULT_SCORE: Record<'tennis' | 'badminton' | 'tabletennis' | 'basketball', string> = {
+  tennis: '6-4',
+  badminton: '21-18',
+  tabletennis: '11-8',
+  basketball: '21-17',
+}
+
 export default function ResultScreen() {
   const match = useApp((s) => s.match)
   const me = useApp((s) => s.me)
@@ -20,12 +27,17 @@ export default function ResultScreen() {
 
   const [stickerFor, setStickerFor] = useState<string | null>(null)
   const [reportFor, setReportFor] = useState<string | null>(null)
+  const [score, setScore] = useState(match ? DEFAULT_SCORE[match.sport] : '')
   /** ELO 연출이 끝나야 세부 내용을 펼친다 */
   const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
     if (!match) nav('/', { replace: true })
   }, [match])
+
+  useEffect(() => {
+    if (match && !score) setScore(DEFAULT_SCORE[match.sport])
+  }, [match, score])
 
   if (!match) return null
 
@@ -45,11 +57,17 @@ export default function ResultScreen() {
   /* ── 1단계: 승패 투표 (전원 일치해야 확정) ── */
   if (!reported) {
     const myVote = match.resultVotes[me.id]
+    const myVoteScore = match.resultVoteScores[me.id]
     const votedCount = Object.keys(match.resultVotes).length
     const countFor = (side: 'a' | 'b') =>
       match.players.filter((p) => match.resultVotes[p.id] === side).length
-    const conflict =
-      votedCount === match.capacity && countFor('a') > 0 && countFor('b') > 0
+    const voteSignatures = match.players
+      .map((player) => {
+        const winner = match.resultVotes[player.id]
+        return winner ? `${winner}:${match.resultVoteScores[player.id] ?? ''}` : null
+      })
+      .filter((value): value is string => Boolean(value))
+    const conflict = votedCount === match.capacity && new Set(voteSignatures).size > 1
 
     return (
       <div className="overlay">
@@ -80,6 +98,7 @@ export default function ResultScreen() {
               <span className="label">투표 현황</span>
               {match.players.map((p) => {
                 const v = match.resultVotes[p.id]
+                const submittedScore = match.resultVoteScores[p.id]
                 const color = v === 'a' ? 'var(--blue)' : v === 'b' ? 'var(--red)' : 'var(--muted)'
                 const reported = match.reports[p.id]
                 return (
@@ -96,7 +115,7 @@ export default function ResultScreen() {
                           borderColor: v && color !== 'var(--muted)' ? color : 'var(--line)',
                         }}
                       >
-                        {v === 'a' ? '🔵 A팀' : v === 'b' ? '🔴 B팀' : '대기중'}
+                        {v === 'a' ? `🔵 A팀 · ${submittedScore}` : v === 'b' ? `🔴 B팀 · ${submittedScore}` : '대기중'}
                       </span>
                       {!p.isMe && (
                         reported ? (
@@ -164,21 +183,37 @@ export default function ResultScreen() {
                 <div className="stack grow" style={{ gap: 2 }}>
                   <strong style={{ fontSize: 13.5, color: 'var(--red)' }}>투표가 일치하지 않습니다</strong>
                   <span className="small" style={{ fontSize: 11 }}>
-                    서로 결과를 확인한 뒤 다시 투표해 주세요. 전원이 같은 팀을 고를 때까지 확정되지 않습니다.
+                    서로 결과를 확인한 뒤 다시 투표해 주세요. 승리 팀과 점수가 모두 같아야 확정됩니다.
                   </span>
                 </div>
               </div>
             )}
 
+            <div className="card stack" style={{ gap: 9 }}>
+              <label className="label" htmlFor="result-score">최종 점수</label>
+              <input
+                id="result-score"
+                className="field mono"
+                value={score}
+                maxLength={40}
+                placeholder={DEFAULT_SCORE[match.sport]}
+                onChange={(event) => setScore(event.target.value)}
+                aria-describedby="result-score-help"
+              />
+              <span id="result-score-help" className="small" style={{ fontSize: 11 }}>
+                예: {DEFAULT_SCORE[match.sport]} · 참가자 모두 같은 점수를 입력해야 합니다.
+              </span>
+            </div>
+
             {(['a', 'b'] as const).map((side) => {
               const isMine = side === myTeam
               const color = side === 'a' ? 'var(--blue)' : 'var(--red)'
-              const picked = myVote === side
+              const picked = myVote === side && myVoteScore === score.trim()
               const n = countFor(side)
               return (
                 <button
                   key={side}
-                  onClick={() => voteResult(side)}
+                  onClick={() => voteResult(side, score)}
                   className="card stack"
                   style={{
                     gap: 12, padding: 16, textAlign: 'left',

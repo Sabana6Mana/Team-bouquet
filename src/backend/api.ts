@@ -5,9 +5,11 @@ import type {
   User,
 } from '@supabase/supabase-js'
 import { backendConfig, requireSupabase, supabase } from './client'
-import type { Json, TableInsert, TableRow, TableUpdate } from './database.types'
+import type { Json, TableInsert, TableRow } from './database.types'
 import type {
+  BackendAchievement,
   BackendAuthState,
+  BackendMatchHistory,
   BackendRealtimeStatus,
   ChatMessage,
   CurrentMatch,
@@ -18,6 +20,7 @@ import type {
   MatchMutationResult,
   MatchRealtimeHandlers,
   MatchTeam,
+  Notification,
   PlayerRating,
   Profile,
   ProfileWithRatings,
@@ -53,6 +56,15 @@ export class BackendRequestError extends Error {
 
 function fail(operation: string, error: BackendErrorSource | null): never {
   throw new BackendRequestError(operation, error ?? new Error('Unknown backend error'))
+}
+
+function failProfile(operation: string, error: BackendErrorSource | null): never {
+  const message = error?.message ?? ''
+  const code = error && 'code' in error ? error.code : undefined
+  if (code === '23505' || /duplicate key|nickname.*key|닉네임.*사용 중/i.test(message)) {
+    fail(operation, new Error('이미 사용 중인 닉네임입니다. 다른 이름을 골라 주세요.'))
+  }
+  fail(operation, error)
 }
 
 async function requireUser(): Promise<User> {
@@ -187,25 +199,26 @@ export const profileApi = {
   async upsert(input: {
     nickname: string
     avatarUrl?: string | null
-    interests?: SportId[]
+    interests: SportId[]
   }): Promise<Profile> {
     const client = requireSupabase()
-    const user = await requireUser()
-    // `handle_new_user` creates the row. Using UPDATE here is intentional:
-    // profiles allow users to update their own row, while direct client inserts
-    // are blocked so a caller cannot bypass the auth trigger contract.
-    const row: TableUpdate<'profiles'> = {
-      nickname: input.nickname.trim(),
-      avatar_url: input.avatarUrl,
-      interests: input.interests,
-    }
-    const { data, error } = await client
-      .from('profiles')
-      .update(row)
-      .eq('id', user.id)
-      .select('*')
-      .single()
-    if (error) fail('프로필 저장 실패', error)
+    await requireUser()
+    const { data, error } = await client.rpc('save_my_profile', {
+      p_nickname: input.nickname.trim(),
+      p_interests: input.interests,
+      p_avatar_url: input.avatarUrl ?? null,
+    })
+    if (error) failProfile('프로필 저장 실패', error)
+    return data
+  },
+
+  async isNicknameAvailable(nickname: string): Promise<boolean> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('is_nickname_available', {
+      p_nickname: nickname.trim(),
+    })
+    if (error) failProfile('닉네임 확인 실패', error)
     return data
   },
 
@@ -214,20 +227,43 @@ export const profileApi = {
     avatarUrl?: string | null
     interests?: SportId[]
   }): Promise<Profile> {
+    const current = await this.getMine()
+    if (!current) fail('프로필 수정 실패', new Error('프로필을 찾을 수 없습니다.'))
+    return this.upsert({
+      nickname: input.nickname ?? current.profile.nickname,
+      avatarUrl: input.avatarUrl,
+      interests: input.interests ?? current.profile.interests,
+    })
+  },
+}
+
+export const achievementApi = {
+  async listMine(): Promise<BackendAchievement[]> {
     const client = requireSupabase()
-    const user = await requireUser()
-    const patch: TableUpdate<'profiles'> = {
-      ...(input.nickname === undefined ? {} : { nickname: input.nickname.trim() }),
-      ...(input.avatarUrl === undefined ? {} : { avatar_url: input.avatarUrl }),
-      ...(input.interests === undefined ? {} : { interests: input.interests }),
-    }
-    const { data, error } = await client
-      .from('profiles')
-      .update(patch)
-      .eq('id', user.id)
-      .select('*')
-      .single()
-    if (error) fail('프로필 수정 실패', error)
+    await requireUser()
+    const { data, error } = await client.rpc('get_my_achievements')
+    if (error) fail('도전과제 조회 실패', error)
+    return (data ?? []).map((row) => ({
+      code: row.code,
+      name: row.name,
+      description: row.description,
+      icon: row.icon,
+      rewardTitle: row.reward_title,
+      rarity: row.rarity,
+      target: row.target,
+      progress: row.progress,
+      unlockedAt: row.unlocked_at,
+      equipped: row.equipped,
+    }))
+  },
+
+  async equip(code: string | null): Promise<string | null> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('equip_my_title', {
+      p_achievement_code: code,
+    })
+    if (error) fail('칭호 장착 실패', error)
     return data
   },
 }
@@ -346,8 +382,9 @@ async function findCurrentMatch(userId: string): Promise<Match | null> {
   const client = requireSupabase()
   const memberships = await client
     .from('match_members')
-    .select('match_id, joined_at')
+    .select('match_id, joined_at, completed_at')
     .eq('user_id', userId)
+    .is('completed_at', null)
     .order('joined_at', { ascending: false })
     .limit(20)
   if (memberships.error) fail('매칭 참가 정보 조회 실패', memberships.error)
@@ -357,7 +394,7 @@ async function findCurrentMatch(userId: string): Promise<Match | null> {
     .from('matches')
     .select('*')
     .in('id', ids)
-    .not('phase', 'in', '(done,canceled)')
+    .neq('phase', 'canceled')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -537,6 +574,95 @@ export const matchApi = {
   },
 }
 
+export const historyApi = {
+  async listMine(limit = 30): Promise<BackendMatchHistory[]> {
+    const client = requireSupabase()
+    const user = await requireUser()
+    const memberships = await client
+      .from('match_members')
+      .select('match_id')
+      .eq('user_id', user.id)
+      .limit(Math.max(limit * 3, 60))
+    if (memberships.error) fail('내 경기 참가 기록 조회 실패', memberships.error)
+    const ids = [...new Set((memberships.data ?? []).map((row) => row.match_id))]
+    if (ids.length === 0) return []
+
+    const matchesResult = await client
+      .from('matches')
+      .select('*')
+      .in('id', ids)
+      .not('finalized_at', 'is', null)
+      .not('winner_team', 'is', null)
+      .order('finalized_at', { ascending: false })
+      .limit(limit)
+    if (matchesResult.error) fail('완료 경기 조회 실패', matchesResult.error)
+    const matches = matchesResult.data ?? []
+    if (matches.length === 0) return []
+
+    const matchIds = matches.map((match) => match.id)
+    const membersResult = await client
+      .from('match_members')
+      .select('*')
+      .in('match_id', matchIds)
+      .order('joined_at')
+    if (membersResult.error) fail('완료 경기 참가자 조회 실패', membersResult.error)
+    const members = membersResult.data ?? []
+    return matches.map((match) => ({
+      match,
+      members: members.filter((member) => member.match_id === match.id),
+    }))
+  },
+}
+
+export const notificationApi = {
+  async listMine(limit = 50): Promise<Notification[]> {
+    const client = requireSupabase()
+    const user = await requireUser()
+    const { data, error } = await client
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) fail('알림 조회 실패', error)
+    return data ?? []
+  },
+
+  async markAllRead(): Promise<void> {
+    const client = requireSupabase()
+    const user = await requireUser()
+    const { error } = await client
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .is('read_at', null)
+    if (error) fail('알림 읽음 처리 실패', error)
+  },
+
+  subscribeMine(
+    userId: string,
+    onChange: (change: RealtimeRowChange<Notification>) => void,
+    onStatus?: (status: BackendRealtimeStatus) => void,
+  ): () => void {
+    if (!supabase) {
+      onStatus?.('DISABLED')
+      return () => undefined
+    }
+    const client = supabase
+    const channel = client
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        (payload) => onChange(toRealtimeChange<Notification>(
+          payload as RealtimePostgresChangesPayload<Notification>,
+        )),
+      )
+      .subscribe((status) => onStatus?.(status))
+    return () => { void client.removeChannel(channel) }
+  },
+}
+
 export const messageApi = {
   async list(matchId: string, options: { limit?: number; before?: string } = {}): Promise<ChatMessage[]> {
     const client = requireSupabase()
@@ -598,14 +724,14 @@ export const voteApi = {
   async result(
     matchId: string,
     winnerTeam: MatchTeam,
-    score?: string | null,
+    score: string,
   ): Promise<ResultVoteResult> {
     const client = requireSupabase()
     await requireUser()
     const { data, error } = await client.rpc('vote_match_result', {
       p_match_id: matchId,
       p_winner_team: winnerTeam,
-      p_score: score ?? null,
+      p_score: score,
     })
     if (error) fail('경기 결과 투표 실패', error)
     const raw = data ?? null
@@ -651,9 +777,12 @@ export const backendApi = {
   venues: venueApi,
   queue: queueApi,
   matches: matchApi,
+  history: historyApi,
+  notifications: notificationApi,
   messages: messageApi,
   votes: voteApi,
   reports: reportApi,
+  achievements: achievementApi,
 }
 
 export type { ChatMessage, CurrentMatch, Match, MatchMember, ResultVote, SlotVote }

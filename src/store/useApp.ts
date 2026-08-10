@@ -11,6 +11,7 @@ import { BOT_CHATS, HOME, NPCS, VENUES } from '../data/seed'
 import { backendApi, backendConfig } from '../backend'
 import { forcedDemo, serverMode } from '../lib/forcedDemo'
 import { INTRO_TOTAL_MS } from '../lib/matchIntro'
+import { localAchievementProgress, titleForAchievement } from '../data/achievements'
 
 /** 데모 시뮬레이션용 타이머. 상태에 넣으면 직렬화가 깨지므로 모듈 레벨에서 관리한다. */
 let timers: ReturnType<typeof setTimeout>[] = []
@@ -68,6 +69,8 @@ interface AppState {
   coords: { lat: number; lng: number }
   match: Match | null
   history: MatchRecord[]
+  /** 데모 모드에서 장착한 칭호. 라이브 모드는 profiles.equipped_title_code가 원본이다. */
+  equippedTitleCode: string | null
   notifications: AppNotification[]
   /** 화면 위에 배너로 띄울 알림 */
   toast: AppNotification | null
@@ -107,8 +110,8 @@ interface AppState {
   advanceToPayment: () => void
   reportPlayer: (playerId: string, reason: string) => void
   pay: () => void
-  voteResult: (winner: 'a' | 'b') => void
-  finalizeResult: (winner: 'a' | 'b') => void
+  voteResult: (winner: 'a' | 'b', score: string) => void
+  finalizeResult: (winner: 'a' | 'b', score: string) => void
   giveSticker: (playerId: string) => void
   finishMatch: () => void
   openReporting: () => void
@@ -116,6 +119,7 @@ interface AppState {
   notify: (title: string, body: string, link?: string) => void
   dismissToast: () => void
   markAllRead: () => void
+  equipLocalTitle: (achievementCode: string | null) => void
   joinClan: (id: string) => void
   reset: () => void
 }
@@ -128,6 +132,7 @@ export const useApp = create<AppState>()(
       coords: HOME,
       match: null,
       history: [],
+      equippedTitleCode: null,
       notifications: [],
       toast: null,
       clanId: null,
@@ -185,6 +190,7 @@ export const useApp = create<AppState>()(
           teamReady: {},
           reports: {},
           resultVotes: {},
+          resultVoteScores: {},
           result: null,
           stickersGiven: [],
           createdAt: Date.now(),
@@ -563,15 +569,21 @@ export const useApp = create<AppState>()(
 
       /* ─────────────── 승패 투표 ─────────────── */
 
-      voteResult: (winner) => {
+      voteResult: (winner, score) => {
         const m = get().match
         if (!m || m.result) return
         const meId = get().me.id
+        const normalizedScore = score.replace(/\s+/g, '')
+        if (!normalizedScore) {
+          get().notify('점수를 입력해 주세요', '참가자 모두 같은 승자와 점수에 동의해야 합니다.')
+          return
+        }
         const votes = { ...m.resultVotes, [meId]: winner }
-        set({ match: { ...m, resultVotes: votes } })
+        const scores = { ...m.resultVoteScores, [meId]: normalizedScore }
+        set({ match: { ...m, resultVotes: votes, resultVoteScores: scores } })
 
         if (serverMode()) {
-          void backendApi.votes.result(m.id, winner).then(() => {
+          void backendApi.votes.result(m.id, winner, normalizedScore).then(() => {
             set((state) => ({
               backendError: null,
               backendRefreshVersion: state.backendRefreshVersion + 1,
@@ -584,6 +596,9 @@ export const useApp = create<AppState>()(
                     ...state.match,
                     resultVotes: Object.fromEntries(
                       Object.entries(state.match.resultVotes).filter(([id]) => id !== meId),
+                    ),
+                    resultVoteScores: Object.fromEntries(
+                      Object.entries(state.match.resultVoteScores).filter(([id]) => id !== meId),
                     ),
                   }
                 : state.match,
@@ -601,16 +616,19 @@ export const useApp = create<AppState>()(
           later(() => {
             const cur = get().match
             if (!cur || cur.id !== m.id || cur.result) return
-            if (cur.resultVotes[meId] !== winner) return // 내가 투표를 바꿨으면 중단
+            if (cur.resultVotes[meId] !== winner || cur.resultVoteScores[meId] !== normalizedScore) return
             const v = { ...cur.resultVotes, [b.id]: winner }
-            set({ match: { ...cur, resultVotes: v } })
-            // 전원이 같은 팀에 투표했을 때만 확정한다.
-            if (cur.players.every((p) => v[p.id] === winner)) get().finalizeResult(winner)
+            const nextScores = { ...cur.resultVoteScores, [b.id]: normalizedScore }
+            set({ match: { ...cur, resultVotes: v, resultVoteScores: nextScores } })
+            // 전원이 같은 팀과 같은 점수에 투표했을 때만 확정한다.
+            if (cur.players.every((p) => v[p.id] === winner && nextScores[p.id] === normalizedScore)) {
+              get().finalizeResult(winner, normalizedScore)
+            }
           }, 900 + i * 1000)
         })
       },
 
-      finalizeResult: (winner) => {
+      finalizeResult: (winner, score) => {
         const m = get().match
         if (!m || m.result) return
         if (serverMode()) return
@@ -625,18 +643,17 @@ export const useApp = create<AppState>()(
           iWon,
         )
         const me = get().me
-        const scoreTable: Record<SportId, string> = {
-          tennis: '6-4', badminton: '21-18', tabletennis: '11-8', basketball: '21-17',
-        }
-
+        const nextStreak = iWon ? (me.streak ?? 0) + 1 : 0
         set({
           me: {
             ...me,
             elo: { ...me.elo, [sport]: me.elo[sport] + delta },
             wins: me.wins + (iWon ? 1 : 0),
             losses: me.losses + (iWon ? 0 : 1),
+            streak: nextStreak,
+            bestStreak: Math.max(me.bestStreak ?? me.streak ?? 0, nextStreak),
           },
-          match: { ...m, result: { winner, score: scoreTable[sport], delta }, phase: 'reporting' },
+          match: { ...m, result: { winner, score, delta }, phase: 'reporting' },
         })
         get().notify('결과 확정!', iWon ? '승리가 기록되었습니다.' : '결과가 기록되었습니다.', '/result')
       },
@@ -728,14 +745,43 @@ export const useApp = create<AppState>()(
       },
 
       dismissToast: () => set({ toast: null }),
-      markAllRead: () => set({ notifications: get().notifications.map((n) => ({ ...n, read: true })) }),
+      markAllRead: () => {
+        set({ notifications: get().notifications.map((n) => ({ ...n, read: true })) })
+        if (serverMode()) {
+          void backendApi.notifications.markAllRead().then(() => {
+            set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '알림 읽음 처리에 실패했습니다.'
+            set({ backendError: message })
+          })
+        }
+      },
+      equipLocalTitle: (achievementCode) => {
+        if (achievementCode) {
+          const unlocked = localAchievementProgress(get().me, get().history, get().equippedTitleCode)
+            .some((achievement) => achievement.code === achievementCode && achievement.unlockedAt)
+          if (!unlocked) {
+            get().notify('아직 잠긴 칭호예요', '도전과제를 달성한 뒤 장착할 수 있습니다.')
+            return
+          }
+        }
+        const title = titleForAchievement(achievementCode)
+        set({
+          equippedTitleCode: achievementCode,
+          me: { ...get().me, titleCode: achievementCode, title },
+        })
+        get().notify(
+          achievementCode ? '칭호 장착 완료' : '칭호를 해제했습니다',
+          achievementCode ? `《${title}》 칭호를 장착했습니다.` : '기본 프로필로 돌아갑니다.',
+        )
+      },
       joinClan: (id) => set({ clanId: get().clanId === id ? null : id }),
 
       reset: () => {
         clearTimers()
         forcedDemo.disable()
         set({
-          account: null, me: emptyMe(), match: null, history: [],
+          account: null, me: emptyMe(), match: null, history: [], equippedTitleCode: null,
           notifications: [], toast: null, clanId: null, coords: HOME,
           backendSlotIds: {}, backendError: null, testMatch: false,
         })
@@ -746,7 +792,7 @@ export const useApp = create<AppState>()(
       partialize: (s) => backendConfig.configured
         ? { coords: s.coords }
         : {
-            account: s.account, me: s.me, history: s.history,
+            account: s.account, me: s.me, history: s.history, equippedTitleCode: s.equippedTitleCode,
             notifications: s.notifications, clanId: s.clanId,
           },
     },

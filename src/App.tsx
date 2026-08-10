@@ -18,6 +18,7 @@ import RoomScreen from './screens/RoomScreen'
 import TeamScreen from './screens/TeamScreen'
 import PaymentScreen from './screens/PaymentScreen'
 import ResultScreen from './screens/ResultScreen'
+import AchievementsScreen from './screens/AchievementsScreen'
 
 function TabLayout() {
   const unread = useApp((s) => s.notifications.filter((n) => !n.read).length)
@@ -52,7 +53,7 @@ function Guard({ children }: { children: React.ReactNode }) {
     if (!backend.user) {
       return authRoute ? <>{children}</> : <Navigate to="/login" replace />
     }
-    if (!backend.profileReady || !account || account.interests.length === 0) {
+    if (!backend.profileReady || !account) {
       return loc.pathname === '/onboarding'
         ? <>{children}</>
         : <Navigate to="/onboarding" replace />
@@ -98,6 +99,7 @@ export default function App() {
 
           {/* 프로필은 탭이 아니라 지도 상단 카드에서 들어가는 상세 화면 */}
           <Route path="/profile" element={<ProfileScreen />} />
+          <Route path="/achievements" element={<AchievementsScreen />} />
 
           <Route path="/queue/new" element={<MatchSetup />} />
           <Route path="/queue" element={<QueueScreen />} />

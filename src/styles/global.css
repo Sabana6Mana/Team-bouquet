@@ -2148,6 +2148,140 @@ a { color: inherit; text-decoration: none; }
 .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--court), var(--court-2)); transition: width 0.4s ease; }
 
+/* ───────────────── 도전과제 · 칭호 ───────────────── */
+
+.achievement-screen { background: linear-gradient(180deg, #f7fbf8, #eef6f0); }
+.achievement-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px;
+  overflow: hidden;
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(255, 221, 106, 0.32), transparent 42%),
+    linear-gradient(135deg, #fffdf5, #f5faef);
+  box-shadow: 0 12px 30px rgba(72, 93, 57, 0.1);
+}
+.achievement-hero::after {
+  content: '';
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  right: -45px;
+  top: -58px;
+  border: 18px solid rgba(184, 134, 11, 0.08);
+  border-radius: 50%;
+}
+.achievement-hero__crest {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 17px;
+  background: linear-gradient(145deg, #fff8d9, #f4d77a);
+  font-size: 27px;
+  box-shadow: inset 0 1px 0 #fff, 0 7px 18px rgba(184, 134, 11, 0.16);
+}
+.achievement-progress-summary {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dae8dd;
+}
+.achievement-progress-summary > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d59d18, #f0c448, #4e9a5e);
+  box-shadow: 0 0 10px rgba(213, 157, 24, 0.28);
+  transition: width 0.45s ease;
+}
+.achievement-filter { flex: 1; justify-content: center; }
+.achievement-filter.is-active {
+  color: #fff;
+  border-color: var(--court);
+  background: var(--court);
+}
+.achievement-card {
+  --rarity-color: var(--court);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--rarity-color) 35%, var(--line));
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 8px 22px rgba(30, 70, 43, 0.07);
+}
+.achievement-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--rarity-color);
+}
+.achievement-card.is-locked { filter: saturate(0.55); opacity: 0.78; }
+.achievement-card.is-equipped {
+  border-color: var(--rarity-color);
+  box-shadow: 0 0 0 1px var(--rarity-color), 0 11px 26px color-mix(in srgb, var(--rarity-color) 14%, transparent);
+}
+.achievement-card__icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--rarity-color) 32%, var(--line));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--rarity-color) 10%, #fff);
+  font-size: 24px;
+}
+.achievement-rarity {
+  flex: 0 0 auto;
+  color: var(--rarity-color);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+.achievement-card__reward {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.achievement-card__reward b { color: var(--rarity-color); font-size: 12px; }
+.achievement-equip { align-self: center; height: 34px !important; padding: 0 11px !important; }
+.achievement-equip.is-equipped { color: #fff; border-color: var(--court); background: var(--court); }
+.achievement-entry-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px;
+  text-align: left;
+  border: 1px solid rgba(184, 134, 11, 0.28);
+  border-radius: 17px;
+  background: linear-gradient(135deg, #fffdf5, #f2f8ed);
+}
+.achievement-entry-card__icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f6e9b5;
+  font-size: 22px;
+}
+.profile-title, .player-summary__title { color: var(--gold); font-weight: 800; }
+
 /* ───────────── 경기 결과 ELO 막대 연출 ───────────── */
 
 .elobar {

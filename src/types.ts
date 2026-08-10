@@ -1,5 +1,19 @@
 export type SportId = 'tennis' | 'badminton' | 'tabletennis' | 'basketball'
 export type MatchMode = '1v1' | '2v2' | '3v3'
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+
+export interface AchievementProgress {
+  code: string
+  name: string
+  description: string
+  icon: string
+  rewardTitle: string
+  rarity: AchievementRarity
+  target: number
+  progress: number
+  unlockedAt: string | null
+  equipped: boolean
+}
 
 export interface SportMeta {
   id: SportId
@@ -26,6 +40,7 @@ export interface Player {
   id: string
   nickname: string
   avatar: string
+  avatarUrl?: string | null
   elo: Record<SportId, number>
   /** 받은 칭찬 스티커 누적 수 */
   stickers: number
@@ -33,6 +48,11 @@ export interface Player {
   losses: number
   /** 지금 이어지고 있는 연승 수. 0이면 연승 중이 아니다. */
   streak?: number
+  /** 달성한 최고 연승. 도전과제는 패배 뒤에도 이 기록을 유지한다. */
+  bestStreak?: number
+  /** 도전과제로 획득해 현재 장착한 칭호 코드와 표시 이름 */
+  titleCode?: string | null
+  title?: string | null
   isMe?: boolean
   clanId?: string
 }
@@ -96,6 +116,8 @@ export interface Match {
   reports: Record<string, string>
   /** 경기 후 승패 투표. playerId -> 이겼다고 본 팀 */
   resultVotes: Record<string, 'a' | 'b'>
+  /** 경기 후 점수 투표. playerId -> 정규화된 점수 문자열 */
+  resultVoteScores: Record<string, string>
   /** 전원이 같은 팀에 투표했을 때만 채워진다. delta는 내 ELO 변동값. */
   result: { winner: 'a' | 'b'; score: string; delta: number } | null
   /** 칭찬 스티커를 준 상대 playerId 목록 */

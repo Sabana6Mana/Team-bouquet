@@ -5,16 +5,22 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import {
   authApi, backendApi, backendConfig,
-  type CurrentMatch, type ProfileWithRatings, type QueueEntry, type VenueSlot,
+  type BackendMatchHistory, type CurrentMatch, type Notification,
+  type ProfileWithRatings, type QueueEntry, type VenueSlot,
 } from '../backend'
 import { encodeSlot } from '../lib/game'
 import { forcedDemo } from '../lib/forcedDemo'
+import { titleForAchievement } from '../data/achievements'
 import { useApp } from '../store/useApp'
-import type { Account, Match, MatchPhase, Player, SportId } from '../types'
+import type {
+  AchievementProgress, Account, AppNotification, Match, MatchPhase, MatchRecord, Player, SportId,
+} from '../types'
 
 interface BackendRuntime {
   /** Supabase 가 설정돼 있는지. 로그인·프로필 흐름이 이 값을 본다. */
   enabled: boolean
+  /** 카카오 콘솔과 Supabase Provider 설정까지 끝났는지 나타내는 공개 플래그. */
+  kakaoEnabled: boolean
   /**
    * 지금 매치를 서버가 굴리고 있는지.
    * 화면 확인용 테스트 매치 중에는 false 가 되어, 매칭 화면들이 NPC 데모 흐름을 그린다.
@@ -23,13 +29,17 @@ interface BackendRuntime {
   ready: boolean
   user: User | null
   profileReady: boolean
+  achievements: AchievementProgress[]
+  achievementsReady: boolean
   error: string | null
   signInAnonymously: () => Promise<void>
   signInWithKakao: () => Promise<void>
   sendEmailOtp: (email: string) => Promise<void>
   verifyEmailOtp: (email: string, token: string) => Promise<void>
   signOut: () => Promise<void>
+  checkNickname: (nickname: string) => Promise<boolean>
   saveProfile: (nickname: string, interests: SportId[]) => Promise<void>
+  equipTitle: (achievementCode: string | null) => Promise<void>
   refresh: () => Promise<void>
 }
 
@@ -73,6 +83,10 @@ function playerFromProfile(
   const interests = value.profile.interests.filter((sport): sport is SportId =>
     SPORTS.includes(sport as SportId),
   )
+  const avatarUrl = value.profile.avatar_url && /^https?:\/\//i.test(value.profile.avatar_url)
+    ? value.profile.avatar_url
+    : null
+  const titleCode = value.profile.equipped_title_code
   return {
     account: {
       name: '', birth: '', carrier: '', phone: '',
@@ -83,11 +97,16 @@ function playerFromProfile(
       id: value.profile.id,
       nickname: value.profile.nickname,
       // MVP에서는 avatar_url 컬럼을 이모지 문자열로도 사용한다.
-      avatar: value.profile.avatar_url || '🦖',
+      avatar: avatarUrl ? '🦖' : value.profile.avatar_url || '🦖',
+      avatarUrl,
       elo,
       stickers: 0,
       wins: value.ratings.reduce((sum, rating) => sum + rating.wins, 0),
       losses: value.ratings.reduce((sum, rating) => sum + rating.losses, 0),
+      streak: Math.max(0, ...value.ratings.map((rating) => rating.current_streak)),
+      bestStreak: Math.max(0, ...value.ratings.map((rating) => rating.best_streak)),
+      titleCode,
+      title: titleForAchievement(titleCode),
       isMe: value.profile.id === currentUserId,
     },
   }
@@ -134,14 +153,22 @@ function matchFromBackend(
     for (const rating of member.ratings) {
       if (SPORTS.includes(rating.sport as SportId)) elo[rating.sport as SportId] = rating.rating
     }
+    const rawAvatar = member.profile?.avatar_url
+    const avatarUrl = rawAvatar && /^https?:\/\//i.test(rawAvatar) ? rawAvatar : null
+    const titleCode = member.profile?.equipped_title_code ?? null
     return {
       id: member.user_id,
       nickname: member.profile?.nickname ?? '플레이어',
-      avatar: member.profile?.avatar_url || '🦖',
+      avatar: avatarUrl ? '🦖' : rawAvatar || '🦖',
+      avatarUrl,
       elo,
       stickers: 0,
       wins: member.ratings.reduce((sum, rating) => sum + rating.wins, 0),
       losses: member.ratings.reduce((sum, rating) => sum + rating.losses, 0),
+      streak: Math.max(0, ...member.ratings.map((rating) => rating.current_streak)),
+      bestStreak: Math.max(0, ...member.ratings.map((rating) => rating.best_streak)),
+      titleCode,
+      title: titleForAchievement(titleCode),
       isMe: member.user_id === currentUserId,
     }
   })
@@ -154,9 +181,11 @@ function matchFromBackend(
     if (value !== undefined) votes[vote.user_id] = value
   }
   const resultVotes: Record<string, 'a' | 'b'> = {}
+  const resultVoteScores: Record<string, string> = {}
   for (const vote of snapshot.resultVotes) {
     if (vote.winner_team === 'a' || vote.winner_team === 'b') {
       resultVotes[vote.user_id] = vote.winner_team
+      resultVoteScores[vote.user_id] = vote.score ?? ''
     }
   }
   const members = snapshot.players
@@ -202,6 +231,7 @@ function matchFromBackend(
       teamReady: Object.fromEntries(members.map((member) => [member.user_id, member.ready])),
       reports: previous?.id === snapshot.match.id ? previous.reports : {},
       resultVotes,
+      resultVoteScores,
       result: winner
         ? {
             winner,
@@ -234,10 +264,41 @@ function queuePlaceholder(entry: QueueEntry, me: Player): Match {
     teamReady: {},
     reports: {},
     resultVotes: {},
+    resultVoteScores: {},
     result: null,
     stickersGiven: [],
     createdAt: new Date(entry.created_at).getTime(),
   }
+}
+
+function historyFromBackend(entries: BackendMatchHistory[], userId: string): MatchRecord[] {
+  return entries.flatMap(({ match, members }) => {
+    if (!match.winner_team || !match.finalized_at) return []
+    const mine = members.find((member) => member.user_id === userId)
+    return [{
+      id: match.id,
+      venueId: match.venue_id,
+      sport: match.sport as SportId,
+      mode: match.mode as MatchRecord['mode'],
+      playedAt: new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric' })
+        .format(new Date(match.finalized_at)),
+      winners: members.filter((member) => member.team === match.winner_team).map((member) => member.user_id),
+      losers: members.filter((member) => member.team !== match.winner_team).map((member) => member.user_id),
+      score: match.score ?? '-',
+      eloDelta: mine?.rating_delta ?? 0,
+    }]
+  })
+}
+
+function notificationsFromBackend(rows: Notification[]): AppNotification[] {
+  return rows.map((notification) => ({
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    at: new Date(notification.created_at).getTime(),
+    read: Boolean(notification.read_at),
+    link: notification.link ?? undefined,
+  }))
 }
 
 export function BackendProvider({ children }: { children: ReactNode }) {
@@ -245,11 +306,14 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(!backendConfig.configured)
   const [profileReady, setProfileReady] = useState(!backendConfig.configured)
   const [error, setError] = useState<string | null>(null)
+  const [achievements, setAchievements] = useState<AchievementProgress[]>([])
+  const [achievementsReady, setAchievementsReady] = useState(!backendConfig.configured)
   const [currentMatchId, setCurrentMatchId] = useState<string | null>(null)
   const sessionUserId = useRef<string | null>(null)
   const refreshInFlight = useRef<Promise<void> | null>(null)
   const refreshQueued = useRef(false)
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previousUnlocks = useRef<Set<string> | null>(null)
   const backendRefreshVersion = useApp((state) => state.backendRefreshVersion)
   const testMatch = useApp((state) => state.testMatch)
 
@@ -282,13 +346,37 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             })
             setCurrentMatchId(null)
             setProfileReady(false)
+            setAchievements([])
+            setAchievementsReady(true)
             setError(null)
             continue
           }
 
           const mapped = playerFromProfile(profile, userId)
-          const snapshot = await backendApi.matches.getCurrent()
+          const [snapshot, achievementList, historyList, notificationList] = await Promise.all([
+            backendApi.matches.getCurrent(),
+            backendApi.achievements.listMine(),
+            backendApi.history.listMine(),
+            backendApi.notifications.listMine(),
+          ])
           if (sessionUserId.current !== userId) return
+          const unlocked = new Set(
+            achievementList.filter((achievement) => achievement.unlockedAt).map((achievement) => achievement.code),
+          )
+          if (previousUnlocks.current) {
+            for (const achievement of achievementList) {
+              if (achievement.unlockedAt && !previousUnlocks.current.has(achievement.code)) {
+                useApp.getState().notify(
+                  `도전과제 달성! ${achievement.icon}`,
+                  `《${achievement.rewardTitle}》 칭호를 획득했습니다.`,
+                  '/achievements',
+                )
+              }
+            }
+          }
+          previousUnlocks.current = unlocked
+          setAchievements(achievementList)
+          setAchievementsReady(true)
           if (snapshot) {
             const slots = snapshot.match.venue_id
               ? await backendApi.venues.listOpenSlots(snapshot.match.venue_id)
@@ -304,6 +392,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
               backendStatus: 'ready',
               backendError: null,
               backendSlotIds: live.slotIds,
+              history: historyFromBackend(historyList, userId),
+              notifications: notificationsFromBackend(notificationList),
             })
             setCurrentMatchId(snapshot.match.id)
           } else {
@@ -318,10 +408,12 @@ export function BackendProvider({ children }: { children: ReactNode }) {
               backendStatus: 'ready',
               backendError: null,
               backendSlotIds: {},
+              history: historyFromBackend(historyList, userId),
+              notifications: notificationsFromBackend(notificationList),
             })
             setCurrentMatchId(null)
           }
-          setProfileReady(true)
+          setProfileReady(Boolean(profile.profile.onboarding_completed_at))
           setError(null)
         } catch (caught) {
           if (sessionUserId.current !== userId) return
@@ -362,6 +454,9 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       if (!next) {
         setReady(true)
         setProfileReady(false)
+        setAchievements([])
+        setAchievementsReady(true)
+        previousUnlocks.current = null
         useApp.setState({
           account: null,
           match: null,
@@ -392,6 +487,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       } else if (userChanged) {
         setReady(false)
         setProfileReady(false)
+        setAchievementsReady(false)
+        previousUnlocks.current = null
         useApp.setState({ backendStatus: 'loading', backendError: null })
       }
     })
@@ -445,6 +542,20 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   }, [session?.user?.id, currentMatchId, refresh])
 
   useEffect(() => {
+    if (!session?.user || currentMatchId) return
+    return backendApi.queue.subscribeMine(session.user.id, scheduleRefresh, (status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        useApp.setState({ backendError: `매칭 실시간 연결 상태: ${status}` })
+      }
+    })
+  }, [session?.user?.id, currentMatchId, scheduleRefresh])
+
+  useEffect(() => {
+    if (!session?.user) return
+    return backendApi.notifications.subscribeMine(session.user.id, scheduleRefresh)
+  }, [session?.user?.id, scheduleRefresh])
+
+  useEffect(() => {
     if (!currentMatchId) return
     // Realtime 변경은 관련 테이블을 함께 다시 읽어 원자적인 화면 스냅샷으로 교체한다.
     return backendApi.matches.subscribe(currentMatchId, {
@@ -463,10 +574,13 @@ export function BackendProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<BackendRuntime>(() => ({
     enabled: backendConfig.configured,
+    kakaoEnabled: backendConfig.kakaoEnabled,
     liveMatch: backendConfig.configured && !testMatch,
     ready,
     user: session?.user ?? null,
     profileReady,
+    achievements,
+    achievementsReady,
     error,
     signInAnonymously: async () => {
       setError(null)
@@ -493,14 +607,29 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       sessionUserId.current = null
       setSession(null)
       setProfileReady(false)
+      setAchievements([])
+      setAchievementsReady(true)
+      previousUnlocks.current = null
       useApp.getState().reset()
     },
+    checkNickname: (nickname) => backendApi.profile.isNicknameAvailable(nickname),
     saveProfile: async (nickname, interests) => {
-      await backendApi.profile.upsert({ nickname, interests, avatarUrl: '🦖' })
+      await backendApi.profile.upsert({ nickname, interests })
       await refresh()
     },
+    equipTitle: async (achievementCode) => {
+      setError(null)
+      try {
+        await backendApi.achievements.equip(achievementCode)
+        await refresh()
+      } catch (caught) {
+        const message = messageOf(caught)
+        setError(message)
+        throw caught
+      }
+    },
     refresh,
-  }), [ready, session, profileReady, error, refresh, testMatch])
+  }), [ready, session, profileReady, achievements, achievementsReady, error, refresh, testMatch])
 
   return <BackendContext.Provider value={value}>{children}</BackendContext.Provider>
 }

@@ -47,11 +47,16 @@ export default function LoginScreen() {
           <button
             className="btn"
             style={{ width: '100%', height: 54, background: '#FEE500', color: '#191919', borderColor: '#FEE500' }}
-            disabled={busy}
+            disabled={busy || !backend.kakaoEnabled}
             onClick={() => void run(backend.signInWithKakao)}
           >
-            카카오로 시작하기
+            {backend.kakaoEnabled ? '카카오로 시작하기' : '카카오 로그인 · 설정 필요'}
           </button>
+          {!backend.kakaoEnabled && (
+            <p className="small" style={{ textAlign: 'center', color: 'var(--gold)' }}>
+              REST API 키와 Client Secret 설정 후 카카오 로그인이 활성화됩니다.
+            </p>
+          )}
           <button
             className="btn primary"
             style={{ width: '100%', height: 54 }}

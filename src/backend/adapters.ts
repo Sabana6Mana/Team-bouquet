@@ -14,6 +14,7 @@ import type {
   ProfileWithRatings,
   VenueSlot,
 } from './types'
+import { titleForAchievement } from '../data/achievements'
 
 const SPORTS: AppSportId[] = ['tennis', 'badminton', 'tabletennis', 'basketball']
 const MODES: AppMatchMode[] = ['1v1', '2v2', '3v3']
@@ -126,10 +127,17 @@ export function profileToPlayer(
     id: value.profile.id,
     nickname: value.profile.nickname,
     avatar: profileAvatar(value.profile.avatar_url),
+    avatarUrl: value.profile.avatar_url && /^https?:\/\//i.test(value.profile.avatar_url)
+      ? value.profile.avatar_url
+      : null,
     elo,
     stickers: 0,
     wins: value.ratings.reduce((total, rating) => total + rating.wins, 0),
     losses: value.ratings.reduce((total, rating) => total + rating.losses, 0),
+    streak: Math.max(0, ...value.ratings.map((rating) => rating.current_streak)),
+    bestStreak: Math.max(0, ...value.ratings.map((rating) => rating.best_streak)),
+    titleCode: value.profile.equipped_title_code,
+    title: titleForAchievement(value.profile.equipped_title_code),
     isMe: currentUserId === value.profile.id,
   }
 }
@@ -187,9 +195,11 @@ export function currentMatchToAppMatch(
   }
 
   const resultVotes: Record<string, 'a' | 'b'> = {}
+  const resultVoteScores: Record<string, string> = {}
   for (const vote of current.resultVotes) {
     if (vote.winner_team === 'a' || vote.winner_team === 'b') {
       resultVotes[vote.user_id] = vote.winner_team
+      resultVoteScores[vote.user_id] = vote.score ?? ''
     }
   }
 
@@ -229,6 +239,7 @@ export function currentMatchToAppMatch(
     teamReady,
     reports: {},
     resultVotes,
+    resultVoteScores,
     result: winner
       ? {
           winner,

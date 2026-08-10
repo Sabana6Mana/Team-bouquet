@@ -1,5 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js'
 import type { Json, TableRow } from './database.types'
+import type { AchievementProgress } from '../types'
 
 export type SportId = 'tennis' | 'badminton' | 'tabletennis' | 'basketball'
 export type MatchMode = '1v1' | '2v2' | '3v3'
@@ -20,6 +21,8 @@ export type ChatMessage = TableRow<'chat_messages'>
 export type SlotVote = TableRow<'slot_votes'>
 export type ResultVote = TableRow<'result_votes'>
 export type Report = TableRow<'reports'>
+export type Notification = TableRow<'notifications'>
+export type BackendAchievement = AchievementProgress
 
 export interface ProfileWithRatings {
   profile: Profile
@@ -40,6 +43,11 @@ export interface CurrentMatch {
   messages: ChatMessage[]
   slotVotes: SlotVote[]
   resultVotes: ResultVote[]
+}
+
+export interface BackendMatchHistory {
+  match: Match
+  members: MatchMember[]
 }
 
 export interface JoinQueueInput {

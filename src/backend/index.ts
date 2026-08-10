@@ -6,6 +6,9 @@ export {
 } from './client'
 export {
   BackendRequestError,
+  achievementApi,
+  historyApi,
+  notificationApi,
   authApi,
   backendApi,
   matchApi,

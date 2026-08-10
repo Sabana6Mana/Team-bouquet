@@ -8,6 +8,7 @@ const supabaseKey = (
 
 export const backendConfig = Object.freeze({
   configured: Boolean(supabaseUrl && supabaseKey),
+  kakaoEnabled: import.meta.env.VITE_KAKAO_LOGIN_ENABLED === 'true',
   url: supabaseUrl ?? null,
 })
 

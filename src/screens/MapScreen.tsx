@@ -146,6 +146,7 @@ export default function MapScreen() {
               </span>
               <span className="player-summary__identity">
                 <strong>{me.nickname}</strong>
+                {me.title && <small className="player-summary__title">《{me.title}》</small>}
                 <span className="mono" style={{ color: playerTier.color }}>
                   {playerTier.name} {me.elo[primarySport]}
                 </span>
