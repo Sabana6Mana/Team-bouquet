@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
 import type { Database } from './database.types'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim()
@@ -21,7 +22,8 @@ export const supabase: SupabaseClient<Database> | null = backendConfig.configure
       auth: {
         persistSession: typeof window !== 'undefined',
         autoRefreshToken: typeof window !== 'undefined',
-        detectSessionInUrl: typeof window !== 'undefined',
+        detectSessionInUrl: typeof window !== 'undefined' && !Capacitor.isNativePlatform(),
+        flowType: Capacitor.isNativePlatform() ? 'pkce' : 'implicit',
       },
     })
   : null

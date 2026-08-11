@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackend } from '../context/BackendProvider'
+import { consumeNativeAuthError } from '../lib/nativeRuntime'
 
 export default function LoginScreen() {
   const backend = useBackend()
@@ -9,7 +10,7 @@ export default function LoginScreen() {
   const [token, setToken] = useState('')
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(() => consumeNativeAuthError())
 
   useEffect(() => {
     if (backend.user) nav('/onboarding', { replace: true })

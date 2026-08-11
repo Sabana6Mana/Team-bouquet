@@ -5,6 +5,9 @@ import type {
   User,
 } from '@supabase/supabase-js'
 import { backendConfig, requireSupabase, supabase } from './client'
+import {
+  NATIVE_AUTH_REDIRECT, isNativeApp, openNativeAuth,
+} from '../lib/nativeRuntime'
 import type { Json, TableInsert, TableRow } from './database.types'
 import type { HonorType } from '../types'
 import type {
@@ -127,13 +130,17 @@ export const authApi = {
 
   async signInWithKakao(redirectTo?: string) {
     const client = requireSupabase()
-    const fallbackRedirect = typeof window === 'undefined'
-      ? undefined
-      : `${window.location.origin}/auth/callback`
+    const native = isNativeApp()
+    const fallbackRedirect = native
+      ? NATIVE_AUTH_REDIRECT
+      : typeof window === 'undefined'
+        ? undefined
+        : `${window.location.origin}/auth/callback`
     const { data, error } = await client.auth.signInWithOAuth({
       provider: 'kakao',
       options: {
         redirectTo: redirectTo ?? fallbackRedirect,
+        skipBrowserRedirect: native,
         // MATCHPOINT collects its own nickname during onboarding and does not
         // require a Kakao email. Keep Kakao's consent screen to basic profile
         // fields so non-Biz Kakao apps can sign in without account_email.
@@ -141,6 +148,7 @@ export const authApi = {
       },
     })
     if (error) fail('카카오 로그인 시작 실패', error)
+    if (native && data.url) await openNativeAuth(data.url)
     return data
   },
 
@@ -150,9 +158,11 @@ export const authApi = {
    */
   async signInWithEmailOtp(email: string, redirectTo?: string) {
     const client = requireSupabase()
-    const fallbackRedirect = typeof window === 'undefined'
-      ? undefined
-      : `${window.location.origin}/auth/callback`
+    const fallbackRedirect = isNativeApp()
+      ? NATIVE_AUTH_REDIRECT
+      : typeof window === 'undefined'
+        ? undefined
+        : `${window.location.origin}/auth/callback`
     const { data, error } = await client.auth.signInWithOtp({
       email: email.trim(),
       options: {

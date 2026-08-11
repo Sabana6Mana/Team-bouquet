@@ -4,6 +4,7 @@ import BottomNav from './components/BottomNav'
 import ToastHost from './components/ToastHost'
 import { useApp } from './store/useApp'
 import { useBackend } from './context/BackendProvider'
+import { getDeviceCoords } from './lib/nativeRuntime'
 
 import Onboarding from './screens/Onboarding'
 import LoginScreen, { AuthCallbackScreen } from './screens/LoginScreen'
@@ -74,13 +75,14 @@ export default function App() {
 
   // 실제 사용자 위치를 받아오되, 거부/실패 시 기본 좌표(강남)를 유지한다.
   useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
-  }, [])
+    let active = true
+    void getDeviceCoords()
+      .then((coords) => {
+        if (active && coords) setCoords(coords)
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [setCoords])
 
   return (
     <div className="shell">
