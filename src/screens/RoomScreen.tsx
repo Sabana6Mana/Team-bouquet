@@ -182,7 +182,7 @@ function PlayerProfile({
         <span><small>패배</small><b>{player.losses}</b></span>
         <span><small>승률</small><b>{rate === null ? '-' : `${rate}%`}</b></span>
       </div>
-      <span className="wide-pop__foot">👏 칭찬 {player.stickers}개</span>
+      <span className="wide-pop__foot">✨ 명예 {player.stickers}개</span>
     </div>
   )
 }

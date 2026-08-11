@@ -131,7 +131,13 @@ export function profileToPlayer(
       ? value.profile.avatar_url
       : null,
     elo,
-    stickers: 0,
+    stickers: value.profile.honor_total,
+    honorCounts: {
+      manner: value.profile.honor_manner,
+      skill: value.profile.honor_skill,
+      punctual: value.profile.honor_punctual,
+      fun: value.profile.honor_fun,
+    },
     wins: value.ratings.reduce((total, rating) => total + rating.wins, 0),
     losses: value.ratings.reduce((total, rating) => total + rating.losses, 0),
     streak: Math.max(0, ...value.ratings.map((rating) => rating.current_streak)),
@@ -156,6 +162,7 @@ function matchPlayerToApp(player: MatchPlayer, currentUserId: string): AppPlayer
     avatar: '🙂',
     elo,
     stickers: 0,
+    honorCounts: { manner: 0, skill: 0, punctual: 0, fun: 0 },
     wins: 0,
     losses: 0,
     isMe: currentUserId === player.user_id,
@@ -174,7 +181,7 @@ function messageToApp(message: CurrentMatch['messages'][number]): AppChatMessage
 
 /**
  * Hydrates the existing synchronous UI model from one Supabase match snapshot.
- * Reports and stickers remain client-only in the current MVP and start empty.
+ * Reports remain local UI state; post-match honors are hydrated from the server.
  */
 export function currentMatchToAppMatch(
   current: CurrentMatch,
@@ -247,7 +254,10 @@ export function currentMatchToAppMatch(
           delta: myMember?.rating_delta ?? 0,
         }
       : null,
-    stickersGiven: [],
+    honorGiven: (() => {
+      const honor = current.honors.find((item) => item.giver_id === currentUserId)
+      return honor ? { playerId: honor.receiver_id, type: honor.honor_type } : null
+    })(),
     createdAt: asTimestamp(match.created_at),
   }
 }

@@ -1,4 +1,4 @@
-import type { MatchMode, MatchRecord, Player, SportId, SportMeta } from '../types'
+import type { HonorType, MatchMode, MatchRecord, Player, SportId, SportMeta } from '../types'
 
 export const SPORTS: Record<SportId, SportMeta> = {
   // 흰 배경에서 글자로 읽힐 만큼 진한 색으로 맞춘다. 테니스는 브랜드색인 코트 그린.
@@ -226,7 +226,7 @@ export interface HonorGrade {
   next: number | null
 }
 
-/** 칭찬 스티커 누적 수에 따른 5단계 명예 등급 */
+/** 경기 후 받은 명예 누적 수에 따른 5단계 명예 등급 */
 export const HONOR_GRADES: HonorGrade[] = [
   { level: 1, name: '새싹 플레이어', color: '#6B7F8C', min: 0, next: 5 },
   { level: 2, name: '좋은 이웃', color: '#1F8A63', min: 5, next: 15 },
@@ -235,14 +235,14 @@ export const HONOR_GRADES: HonorGrade[] = [
   { level: 5, name: '명예의 전당', color: '#B8860B', min: 50, next: null },
 ]
 
-export function honorOf(stickers: number): HonorGrade {
+export function honorOf(honors: number): HonorGrade {
   let found = HONOR_GRADES[0]
-  for (const g of HONOR_GRADES) if (stickers >= g.min) found = g
+  for (const g of HONOR_GRADES) if (honors >= g.min) found = g
   return found
 }
 
-/** 경기 후 상대에게 줄 수 있는 칭찬 스티커 종류 */
-export const STICKERS = [
+/** 경기 후 상대에게 한 번만 보낼 수 있는 명예 종류 */
+export const HONOR_TYPES: ReadonlyArray<{ id: HonorType; emoji: string; label: string }> = [
   { id: 'manner', emoji: '🤝', label: '매너가 좋아요' },
   { id: 'skill', emoji: '🔥', label: '실력이 대단해요' },
   { id: 'punctual', emoji: '⏰', label: '시간 약속을 잘 지켜요' },

@@ -13,7 +13,7 @@ import { forcedDemo } from '../lib/forcedDemo'
 import { titleForAchievement } from '../data/achievements'
 import { useApp } from '../store/useApp'
 import type {
-  AchievementProgress, Account, AppNotification, Match, MatchPhase, MatchRecord, Player, SportId,
+  AchievementProgress, Account, AppNotification, HonorCounts, Match, MatchPhase, MatchRecord, Player, SportId,
 } from '../types'
 
 interface BackendRuntime {
@@ -46,6 +46,7 @@ interface BackendRuntime {
 const BackendContext = createContext<BackendRuntime | null>(null)
 
 const SPORTS: SportId[] = ['tennis', 'badminton', 'tabletennis', 'basketball']
+const EMPTY_HONORS: HonorCounts = { manner: 0, skill: 0, punctual: 0, fun: 0 }
 const MATCH_PHASES: MatchPhase[] = [
   'queue', 'scheduling', 'teaming', 'payment', 'confirmed', 'reporting', 'done',
 ]
@@ -61,6 +62,7 @@ function emptyPlayer(id: string): Player {
     avatar: '🦖',
     elo: { tennis: 1200, badminton: 1200, tabletennis: 1200, basketball: 1200 },
     stickers: 0,
+    honorCounts: { ...EMPTY_HONORS },
     wins: 0,
     losses: 0,
     isMe: true,
@@ -100,7 +102,13 @@ function playerFromProfile(
       avatar: avatarUrl ? '🦖' : value.profile.avatar_url || '🦖',
       avatarUrl,
       elo,
-      stickers: 0,
+      stickers: value.profile.honor_total,
+      honorCounts: {
+        manner: value.profile.honor_manner,
+        skill: value.profile.honor_skill,
+        punctual: value.profile.honor_punctual,
+        fun: value.profile.honor_fun,
+      },
       wins: value.ratings.reduce((sum, rating) => sum + rating.wins, 0),
       losses: value.ratings.reduce((sum, rating) => sum + rating.losses, 0),
       streak: Math.max(0, ...value.ratings.map((rating) => rating.current_streak)),
@@ -162,7 +170,15 @@ function matchFromBackend(
       avatar: avatarUrl ? '🦖' : rawAvatar || '🦖',
       avatarUrl,
       elo,
-      stickers: 0,
+      stickers: member.profile?.honor_total ?? 0,
+      honorCounts: member.profile
+        ? {
+            manner: member.profile.honor_manner,
+            skill: member.profile.honor_skill,
+            punctual: member.profile.honor_punctual,
+            fun: member.profile.honor_fun,
+          }
+        : { ...EMPTY_HONORS },
       wins: member.ratings.reduce((sum, rating) => sum + rating.wins, 0),
       losses: member.ratings.reduce((sum, rating) => sum + rating.losses, 0),
       streak: Math.max(0, ...member.ratings.map((rating) => rating.current_streak)),
@@ -239,7 +255,10 @@ function matchFromBackend(
             delta: meMember?.rating_delta ?? 0,
           }
         : null,
-      stickersGiven: previous?.id === snapshot.match.id ? previous.stickersGiven : [],
+      honorGiven: (() => {
+        const honor = snapshot.honors.find((item) => item.giver_id === currentUserId)
+        return honor ? { playerId: honor.receiver_id, type: honor.honor_type } : null
+      })(),
       createdAt: new Date(snapshot.match.created_at).getTime(),
     },
   }
@@ -266,7 +285,7 @@ function queuePlaceholder(entry: QueueEntry, me: Player): Match {
     resultVotes: {},
     resultVoteScores: {},
     result: null,
-    stickersGiven: [],
+    honorGiven: null,
     createdAt: new Date(entry.created_at).getTime(),
   }
 }
@@ -564,6 +583,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       onMessage: scheduleRefresh,
       onSlotVote: scheduleRefresh,
       onResultVote: scheduleRefresh,
+      onHonor: scheduleRefresh,
       onStatus: (status) => {
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           useApp.setState({ backendError: `실시간 연결 상태: ${status}` })

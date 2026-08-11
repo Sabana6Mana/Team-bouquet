@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
-  Account, AppNotification, Match, MatchMode, MatchRecord, Player, SportId,
+  Account, AppNotification, HonorType, Match, MatchMode, MatchRecord, Player, SportId,
 } from '../types'
 import {
   capacityOf, distanceMeters, eloDelta, encodeSlot, isSlotOpen, QUICK_RADIUS_M,
@@ -57,6 +57,7 @@ function emptyMe(): Player {
     avatar: '🙂',
     elo: { tennis: 1200, badminton: 1200, tabletennis: 1200, basketball: 1200 },
     stickers: 0,
+    honorCounts: { manner: 0, skill: 0, punctual: 0, fun: 0 },
     wins: 0,
     losses: 0,
     isMe: true,
@@ -89,6 +90,8 @@ interface AppState {
    * (같은 상태를 forcedDemo 모듈이 React 밖에서도 읽는다.)
    */
   testMatch: boolean
+  /** 명예 저장과 경기 완료 RPC가 경합하지 않도록 완료 버튼을 잠근다. */
+  honorSubmitting: boolean
 
   signUp: (a: Omit<Account, 'interests'>) => void
   setInterests: (ids: SportId[]) => void
@@ -112,7 +115,7 @@ interface AppState {
   pay: () => void
   voteResult: (winner: 'a' | 'b', score: string) => void
   finalizeResult: (winner: 'a' | 'b', score: string) => void
-  giveSticker: (playerId: string) => void
+  giveHonor: (playerId: string, honorType: HonorType) => void
   finishMatch: () => void
   openReporting: () => void
 
@@ -142,6 +145,7 @@ export const useApp = create<AppState>()(
       backendSlotIds: {},
       backendRefreshVersion: 0,
       testMatch: false,
+      honorSubmitting: false,
 
       signUp: (a) => {
         const me: Player = {
@@ -192,7 +196,7 @@ export const useApp = create<AppState>()(
           resultVotes: {},
           resultVoteScores: {},
           result: null,
-          stickersGiven: [],
+          honorGiven: null,
           createdAt: Date.now(),
         }
         set({ match })
@@ -558,7 +562,7 @@ export const useApp = create<AppState>()(
                 const c2 = get().match
                 if (!c2 || c2.id !== m.id || c2.phase !== 'confirmed') return
                 set({ match: { ...c2, phase: 'reporting' } })
-                get().notify('경기가 끝났어요', '승패를 확정하고 상대에게 칭찬 스티커를 보내주세요.', '/result')
+                get().notify('경기가 끝났어요', '승패를 확정하고 좋은 상대에게 명예를 보내주세요.', '/result')
               }, 7000)
             }
           }, 1200 + i * 1000)
@@ -658,22 +662,71 @@ export const useApp = create<AppState>()(
         get().notify('결과 확정!', iWon ? '승리가 기록되었습니다.' : '결과가 기록되었습니다.', '/result')
       },
 
-      giveSticker: (playerId) => {
+      giveHonor: (playerId, honorType) => {
         const m = get().match
-        if (!m || m.stickersGiven.includes(playerId)) return
-        if (serverMode()) {
-          get().notify('칭찬 기능 준비 중', '실사용자 칭찬 스티커는 다음 MVP 단계에서 저장됩니다.')
+        if (!m || m.honorGiven || m.reports[playerId]) return
+        const myTeam = m.teams.a.includes(get().me.id) ? 'a' : 'b'
+        const opponentTeam = myTeam === 'a' ? 'b' : 'a'
+        if (!m.teams[opponentTeam].includes(playerId)) {
+          get().notify('명예 전달 불가', '상대 팀 선수에게만 명예를 보낼 수 있습니다.')
           return
         }
-        set({ match: { ...m, stickersGiven: [...m.stickersGiven, playerId] } })
-        // 데모: 상대도 나에게 스티커를 보내 명예 등급이 오른다.
-        const me = get().me
-        set({ me: { ...me, stickers: me.stickers + 1 } })
+        const honorGiven = { playerId, type: honorType }
+        set({ match: { ...m, honorGiven }, honorSubmitting: serverMode() })
+
+        if (serverMode()) {
+          void backendApi.honors.give(m.id, playerId, honorType).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+              honorSubmitting: false,
+            }))
+            get().notify('명예 전달 완료 ✨', '좋은 승부를 만든 상대에게 명예가 전달되었습니다.')
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '명예 전달에 실패했습니다.'
+            set((state) => ({
+              match: state.match?.id === m.id && state.match.honorGiven?.playerId === playerId
+                ? { ...state.match, honorGiven: null }
+                : state.match,
+              backendError: message,
+              honorSubmitting: false,
+            }))
+            get().notify('명예 전달 실패', message)
+          })
+          return
+        }
+
+        set((state) => ({
+          honorSubmitting: false,
+          match: state.match?.id === m.id
+            ? {
+                ...state.match,
+                players: state.match.players.map((player) => {
+                  if (player.id !== playerId) return player
+                  const honorCounts = player.honorCounts
+                    ?? { manner: 0, skill: 0, punctual: 0, fun: 0 }
+                  return {
+                    ...player,
+                    stickers: player.stickers + 1,
+                    honorCounts: {
+                      ...honorCounts,
+                      [honorType]: honorCounts[honorType] + 1,
+                    },
+                  }
+                }),
+              }
+            : state.match,
+        }))
+        get().notify('명예 전달 완료 ✨', '상대의 프로필 명예 등급에 반영되었습니다.')
       },
 
       finishMatch: () => {
         const m = get().match
         if (!m) return
+        if (get().honorSubmitting) {
+          get().notify('잠시만 기다려 주세요', '명예를 안전하게 저장하고 있습니다.')
+          return
+        }
         const meId = get().me.id
         const myTeam = m.teams.a.includes(meId) ? 'a' : 'b'
         const iWon = m.result?.winner === myTeam
@@ -783,7 +836,7 @@ export const useApp = create<AppState>()(
         set({
           account: null, me: emptyMe(), match: null, history: [], equippedTitleCode: null,
           notifications: [], toast: null, clanId: null, coords: HOME,
-          backendSlotIds: {}, backendError: null, testMatch: false,
+          backendSlotIds: {}, backendError: null, testMatch: false, honorSubmitting: false,
         })
       },
     }),

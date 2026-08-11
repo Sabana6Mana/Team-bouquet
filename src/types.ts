@@ -1,4 +1,6 @@
 export type SportId = 'tennis' | 'badminton' | 'tabletennis' | 'basketball'
+export type HonorType = 'manner' | 'skill' | 'punctual' | 'fun'
+export type HonorCounts = Record<HonorType, number>
 export type MatchMode = '1v1' | '2v2' | '3v3'
 export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
 
@@ -42,8 +44,10 @@ export interface Player {
   avatar: string
   avatarUrl?: string | null
   elo: Record<SportId, number>
-  /** 받은 칭찬 스티커 누적 수 */
+  /** 받은 경기 명예 누적 수 */
   stickers: number
+  /** 유형별로 받은 명예 수. 서버 프로필의 집계값을 그대로 사용한다. */
+  honorCounts?: HonorCounts
   wins: number
   losses: number
   /** 지금 이어지고 있는 연승 수. 0이면 연승 중이 아니다. */
@@ -120,8 +124,8 @@ export interface Match {
   resultVoteScores: Record<string, string>
   /** 전원이 같은 팀에 투표했을 때만 채워진다. delta는 내 ELO 변동값. */
   result: { winner: 'a' | 'b'; score: string; delta: number } | null
-  /** 칭찬 스티커를 준 상대 playerId 목록 */
-  stickersGiven: string[]
+  /** 이번 경기에서 내가 보낸 단 한 번의 명예 */
+  honorGiven: { playerId: string; type: HonorType } | null
   createdAt: number
 }
 

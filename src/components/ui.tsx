@@ -29,8 +29,8 @@ export function TierBadge({ elo, size = 'md' }: { elo: number; size?: 'sm' | 'md
   )
 }
 
-export function HonorBadge({ stickers }: { stickers: number }) {
-  const h = honorOf(stickers)
+export function HonorBadge({ honors }: { honors: number }) {
+  const h = honorOf(honors)
   return (
     <span className="chip" style={{ color: h.color, borderColor: `${h.color}55`, background: `${h.color}16` }}>
       {'★'.repeat(h.level)}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { VENUES } from '../data/seed'
 import {
-  HONOR_GRADES, MODE_LABEL, REPORT_REASONS, SPORTS, STICKERS,
+  HONOR_GRADES, HONOR_TYPES, MODE_LABEL, REPORT_REASONS, SPORTS,
   honorOf, reportReasonLabel, tierOf,
 } from '../lib/game'
 import { TopBar } from '../components/ui'
@@ -20,12 +20,13 @@ export default function ResultScreen() {
   const match = useApp((s) => s.match)
   const me = useApp((s) => s.me)
   const voteResult = useApp((s) => s.voteResult)
-  const giveSticker = useApp((s) => s.giveSticker)
+  const giveHonor = useApp((s) => s.giveHonor)
+  const honorSubmitting = useApp((s) => s.honorSubmitting)
   const reportPlayer = useApp((s) => s.reportPlayer)
   const finishMatch = useApp((s) => s.finishMatch)
   const nav = useNavigate()
 
-  const [stickerFor, setStickerFor] = useState<string | null>(null)
+  const [honorFor, setHonorFor] = useState<string | null>(null)
   const [reportFor, setReportFor] = useState<string | null>(null)
   const [score, setScore] = useState(match ? DEFAULT_SCORE[match.sport] : '')
   /** ELO 연출이 끝나야 세부 내용을 펼친다 */
@@ -52,7 +53,8 @@ export default function ResultScreen() {
   const honor = honorOf(me.stickers)
 
   const playerOf = (id: string) => match.players.find((p) => p.id === id)!
-  const opponents = match.players.filter((p) => !p.isMe)
+  const opponentTeam: 'a' | 'b' = myTeam === 'a' ? 'b' : 'a'
+  const opponents = match.players.filter((p) => match.teams[opponentTeam].includes(p.id))
 
   /* ── 1단계: 승패 투표 (전원 일치해야 확정) ── */
   if (!reported) {
@@ -264,7 +266,7 @@ export default function ResultScreen() {
     )
   }
 
-  /* ── 2단계: ELO 변동 + 칭찬 스티커 ── */
+  /* ── 2단계: ELO 변동 + 경기 명예 ── */
   return (
     <div className="overlay">
       <TopBar title="경기 종료" />
@@ -301,17 +303,21 @@ export default function ResultScreen() {
             <span className="mono" style={{ fontSize: 22, fontWeight: 800 }}>{match.result!.score}</span>
           </div>
 
-          {/* 칭찬 스티커 */}
+          {/* 경기 명예 */}
           <div className="stack" style={{ gap: 11 }}>
             <div className="stack" style={{ gap: 5 }}>
-              <span className="label">칭찬 스티커 보내기</span>
+              <span className="label">상대에게 명예 보내기</span>
               <p className="small" style={{ fontSize: 11.5 }}>
-                함께한 플레이어에게 스티커를 보내세요. 받은 스티커가 쌓이면 명예 등급이 올라갑니다.
+                좋은 승부를 만든 상대 한 명을 골라 명예를 보내세요. 경기당 한 번만 보낼 수 있습니다.
               </p>
             </div>
 
             {opponents.map((p) => {
-              const sent = match.stickersGiven.includes(p.id)
+              const sent = match.honorGiven?.playerId === p.id
+              const chanceUsed = !!match.honorGiven && !sent
+              const selectedHonor = sent
+                ? HONOR_TYPES.find((item) => item.id === match.honorGiven?.type)
+                : null
               const reported = match.reports[p.id]
               const h = honorOf(p.stickers)
               return (
@@ -335,22 +341,25 @@ export default function ResultScreen() {
                     </div>
                     {sent ? (
                       <span className="chip" style={{ color: 'var(--gold)', borderColor: 'rgba(184, 134, 11,0.5)' }}>
-                        전달 완료 ✓
+                        {selectedHonor?.emoji} 전달 완료 ✓
                       </span>
+                    ) : chanceUsed ? (
+                      <span className="chip" style={{ color: 'var(--muted)' }}>명예 전달 완료</span>
                     ) : (
                       <button
                         className="btn sm"
-                        disabled={!!reported}
-                        onClick={() => { setReportFor(null); setStickerFor(stickerFor === p.id ? null : p.id) }}
+                        disabled={!!reported || honorSubmitting}
+                        onClick={() => { setReportFor(null); setHonorFor(honorFor === p.id ? null : p.id) }}
                       >
-                        스티커 주기
+                        명예 보내기
                       </button>
                     )}
-                    {!reported && (
+                    {!reported && !sent && (
                       <button
                         className="chip"
                         style={{ height: 30, fontSize: 12, color: 'var(--muted)' }}
-                        onClick={() => { setStickerFor(null); setReportFor(reportFor === p.id ? null : p.id) }}
+                        disabled={honorSubmitting}
+                        onClick={() => { setHonorFor(null); setReportFor(reportFor === p.id ? null : p.id) }}
                         aria-label={`${p.nickname} 신고`}
                       >
                         🚩
@@ -367,17 +376,18 @@ export default function ResultScreen() {
                     </div>
                   )}
 
-                  {stickerFor === p.id && !sent && !reported && (
+                  {honorFor === p.id && !match.honorGiven && !reported && (
                     <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-                      {STICKERS.map((s) => (
+                      {HONOR_TYPES.map((item) => (
                         <button
-                          key={s.id}
+                          key={item.id}
                           className="card row"
                           style={{ gap: 8, padding: 11 }}
-                          onClick={() => { giveSticker(p.id); setStickerFor(null) }}
+                          disabled={honorSubmitting}
+                          onClick={() => { giveHonor(p.id, item.id); setHonorFor(null) }}
                         >
-                          <span style={{ fontSize: 19 }}>{s.emoji}</span>
-                          <span style={{ fontSize: 11.5, fontWeight: 600, textAlign: 'left' }}>{s.label}</span>
+                          <span style={{ fontSize: 19 }}>{item.emoji}</span>
+                          <span style={{ fontSize: 11.5, fontWeight: 600, textAlign: 'left' }}>{item.label}</span>
                         </button>
                       ))}
                     </div>
@@ -421,7 +431,7 @@ export default function ResultScreen() {
               />
             </div>
             <div className="row spread">
-              <span className="small mono">스티커 {me.stickers}개</span>
+              <span className="small mono">받은 명예 {me.stickers}개</span>
               <span className="small">
                 {honor.next ? `다음 등급까지 ${honor.next - me.stickers}개` : '최고 등급 달성 🎉'}
               </span>
@@ -449,9 +459,10 @@ export default function ResultScreen() {
           <button
             className="btn primary"
             style={{ width: '100%', height: 56, fontSize: 16 }}
+            disabled={honorSubmitting}
             onClick={() => { finishMatch(); nav('/', { replace: true }) }}
           >
-            완료
+            {honorSubmitting ? '명예 저장 중…' : '완료'}
           </button>
         </div>
       )}

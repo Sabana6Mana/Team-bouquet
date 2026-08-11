@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { CLANS, VENUES } from '../data/seed'
-import { HONOR_GRADES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
+import { HONOR_GRADES, HONOR_TYPES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
 
@@ -51,7 +51,7 @@ export default function ProfileScreen() {
             {[
               { label: '전적', value: `${me.wins}승 ${me.losses}패` },
               { label: '승률', value: `${winRate}%` },
-              { label: '스티커', value: `${me.stickers}개` },
+              { label: '받은 명예', value: `${me.stickers}개` },
             ].map((s, i) => (
               <div key={s.label} className="stack center grow" style={{ gap: 4, borderLeft: i ? '1px solid var(--line)' : 'none' }}>
                 <span className="mono" style={{ fontSize: 16, fontWeight: 800 }}>{s.value}</span>
@@ -93,6 +93,22 @@ export default function ProfileScreen() {
                 <span style={{ fontSize: 9, textAlign: 'center', color: 'var(--muted)', lineHeight: 1.3 }}>
                   {g.name.split(' ')[0]}
                 </span>
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+              paddingTop: 10, borderTop: '1px solid var(--line)',
+            }}
+          >
+            {HONOR_TYPES.map((item) => (
+              <div key={item.id} className="row" style={{ gap: 7, minWidth: 0 }}>
+                <span aria-hidden="true">{item.emoji}</span>
+                <span className="small grow" style={{ fontSize: 10.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {item.label}
+                </span>
+                <strong className="mono" style={{ fontSize: 12 }}>{me.honorCounts?.[item.id] ?? 0}</strong>
               </div>
             ))}
           </div>

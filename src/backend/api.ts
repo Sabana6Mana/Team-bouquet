@@ -6,6 +6,7 @@ import type {
 } from '@supabase/supabase-js'
 import { backendConfig, requireSupabase, supabase } from './client'
 import type { Json, TableInsert, TableRow } from './database.types'
+import type { HonorType } from '../types'
 import type {
   BackendAchievement,
   BackendAuthState,
@@ -13,9 +14,11 @@ import type {
   BackendRealtimeStatus,
   ChatMessage,
   CurrentMatch,
+  GiveHonorResult,
   JoinQueueInput,
   JoinQueueResult,
   Match,
+  MatchHonor,
   MatchMember,
   MatchMutationResult,
   MatchRealtimeHandlers,
@@ -410,16 +413,18 @@ async function findCurrentMatch(userId: string): Promise<Match | null> {
 
 async function hydrateMatch(match: Match): Promise<CurrentMatch> {
   const client = requireSupabase()
-  const [membersResult, messagesResult, slotVotesResult, resultVotesResult] = await Promise.all([
+  const [membersResult, messagesResult, slotVotesResult, resultVotesResult, honorsResult] = await Promise.all([
     client.from('match_members').select('*').eq('match_id', match.id).order('joined_at'),
     client.from('chat_messages').select('*').eq('match_id', match.id).order('created_at'),
     client.from('slot_votes').select('*').eq('match_id', match.id),
     client.from('result_votes').select('*').eq('match_id', match.id),
+    client.from('match_honors').select('*').eq('match_id', match.id),
   ])
   if (membersResult.error) fail('매칭 참가자 조회 실패', membersResult.error)
   if (messagesResult.error) fail('채팅 조회 실패', messagesResult.error)
   if (slotVotesResult.error) fail('시간 투표 조회 실패', slotVotesResult.error)
   if (resultVotesResult.error) fail('결과 투표 조회 실패', resultVotesResult.error)
+  if (honorsResult.error) fail('경기 명예 조회 실패', honorsResult.error)
 
   const members = membersResult.data ?? []
   const userIds = members.map((member) => member.user_id)
@@ -456,6 +461,7 @@ async function hydrateMatch(match: Match): Promise<CurrentMatch> {
     messages: messagesResult.data ?? [],
     slotVotes: slotVotesResult.data ?? [],
     resultVotes: resultVotesResult.data ?? [],
+    honors: honorsResult.data ?? [],
   }
 }
 
@@ -573,6 +579,13 @@ export const matchApi = {
         { event: '*', schema: 'public', table: 'result_votes', filter: `match_id=eq.${matchId}` },
         (payload) => handlers.onResultVote?.(toRealtimeChange<ResultVote>(
           payload as RealtimePostgresChangesPayload<ResultVote>,
+        )),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_honors', filter: `match_id=eq.${matchId}` },
+        (payload) => handlers.onHonor?.(toRealtimeChange<MatchHonor>(
+          payload as RealtimePostgresChangesPayload<MatchHonor>,
         )),
       )
       .subscribe((status) => handlers.onStatus?.(status))
@@ -776,6 +789,28 @@ export const reportApi = {
   },
 }
 
+export const honorApi = {
+  async give(matchId: string, receiverId: string, honorType: HonorType): Promise<GiveHonorResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('give_match_honor', {
+      p_match_id: matchId,
+      p_receiver_id: receiverId,
+      p_honor_type: honorType,
+    })
+    if (error) fail('명예 전달 실패', error)
+    const raw = data ?? null
+    const value = jsonObject(raw)
+    return {
+      matchId: jsonString(value?.match_id) ?? matchId,
+      receiverId: jsonString(value?.receiver_id) ?? receiverId,
+      honorType: (jsonString(value?.honor_type) as HonorType | undefined) ?? honorType,
+      created: jsonBoolean(value?.created) ?? false,
+      raw,
+    }
+  },
+}
+
 /** Single import point for feature/store integration. */
 export const backendApi = {
   auth: authApi,
@@ -788,7 +823,8 @@ export const backendApi = {
   messages: messageApi,
   votes: voteApi,
   reports: reportApi,
+  honors: honorApi,
   achievements: achievementApi,
 }
 
-export type { ChatMessage, CurrentMatch, Match, MatchMember, ResultVote, SlotVote }
+export type { ChatMessage, CurrentMatch, Match, MatchHonor, MatchMember, ResultVote, SlotVote }

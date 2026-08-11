@@ -1,6 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js'
 import type { Json, TableRow } from './database.types'
-import type { AchievementProgress } from '../types'
+import type { AchievementProgress, HonorType } from '../types'
 
 export type SportId = 'tennis' | 'badminton' | 'tabletennis' | 'basketball'
 export type MatchMode = '1v1' | '2v2' | '3v3'
@@ -22,6 +22,7 @@ export type SlotVote = TableRow<'slot_votes'>
 export type ResultVote = TableRow<'result_votes'>
 export type Report = TableRow<'reports'>
 export type Notification = TableRow<'notifications'>
+export type MatchHonor = TableRow<'match_honors'>
 export type BackendAchievement = AchievementProgress
 
 export interface ProfileWithRatings {
@@ -43,6 +44,7 @@ export interface CurrentMatch {
   messages: ChatMessage[]
   slotVotes: SlotVote[]
   resultVotes: ResultVote[]
+  honors: MatchHonor[]
 }
 
 export interface BackendMatchHistory {
@@ -88,6 +90,14 @@ export interface MatchMutationResult {
   raw: Json
 }
 
+export interface GiveHonorResult {
+  matchId: string
+  receiverId: string
+  honorType: HonorType
+  created: boolean
+  raw: Json
+}
+
 export interface BackendAuthState {
   event: string
   session: Session | null
@@ -119,5 +129,6 @@ export interface MatchRealtimeHandlers {
   onMessage?: (change: RealtimeRowChange<ChatMessage>) => void
   onSlotVote?: (change: RealtimeRowChange<SlotVote>) => void
   onResultVote?: (change: RealtimeRowChange<ResultVote>) => void
+  onHonor?: (change: RealtimeRowChange<MatchHonor>) => void
   onStatus?: (status: BackendRealtimeStatus) => void
 }
