@@ -5,6 +5,13 @@ import { HONOR_GRADES, HONOR_TYPES, SPORT_LIST, SPORTS, honorOf, tierOf } from '
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
 
+const HONOR_SHORT_LABEL = {
+  manner: '매너',
+  skill: '실력',
+  punctual: '시간 약속',
+  fun: '분위기',
+} as const
+
 export default function ProfileScreen() {
   const nav = useNavigate()
   const me = useApp((s) => s.me)
@@ -106,7 +113,7 @@ export default function ProfileScreen() {
               <div key={item.id} className="row" style={{ gap: 7, minWidth: 0 }}>
                 <span aria-hidden="true">{item.emoji}</span>
                 <span className="small grow" style={{ fontSize: 10.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {item.label}
+                  {HONOR_SHORT_LABEL[item.id]}
                 </span>
                 <strong className="mono" style={{ fontSize: 12 }}>{me.honorCounts?.[item.id] ?? 0}</strong>
               </div>

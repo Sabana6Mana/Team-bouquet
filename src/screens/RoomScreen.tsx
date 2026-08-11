@@ -705,7 +705,7 @@ export default function RoomScreen() {
 
             {dayStrip(false)}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, padding: '11px 16px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 7, padding: '11px 16px 0' }}>
               {slotGrid}
             </div>
 
