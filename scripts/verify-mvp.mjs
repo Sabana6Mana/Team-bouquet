@@ -37,8 +37,18 @@ function localSupabaseEnv() {
   }
 }
 
-const local = localSupabaseEnv()
 const envFile = dotenvFile()
+const configuredUrl = process.env.VITE_SUPABASE_URL
+  || process.env.SUPABASE_URL
+  || envFile.VITE_SUPABASE_URL
+const configuredKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  || process.env.VITE_SUPABASE_ANON_KEY
+  || process.env.SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_ANON_KEY
+const configuredServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.SUPABASE_SECRET_KEY
+const local = configuredUrl && configuredKey && configuredServiceKey ? {} : localSupabaseEnv()
 const url = process.env.VITE_SUPABASE_URL
   || process.env.SUPABASE_URL
   || envFile.VITE_SUPABASE_URL
@@ -143,6 +153,10 @@ async function formMatch(cleanupContext, firstActor, secondActor, queueArgs = fi
   const second = await rpc(secondActor.client, 'join_match_queue', queueArgs)
   assert(second.match_id, '두 번째 참가 후 match_id가 생성되지 않았습니다.')
   cleanupContext.matchIds.add(second.match_id)
+  const firstAcceptance = await rpc(firstActor.client, 'accept_match', { p_match_id: second.match_id })
+  assert(firstAcceptance.phase === 'queue', '첫 번째 수락 뒤에는 다른 참가자를 기다려야 합니다.')
+  const secondAcceptance = await rpc(secondActor.client, 'accept_match', { p_match_id: second.match_id })
+  assert(secondAcceptance.phase === 'scheduling', '전원 수락 뒤 scheduling 단계로 전환되지 않았습니다.')
   return second.match_id
 }
 

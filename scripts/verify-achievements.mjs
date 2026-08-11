@@ -37,8 +37,18 @@ function localSupabaseEnv() {
   }
 }
 
-const local = localSupabaseEnv()
 const envFile = dotenvFile()
+const configuredUrl = process.env.VITE_SUPABASE_URL
+  || process.env.SUPABASE_URL
+  || envFile.VITE_SUPABASE_URL
+const configuredKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  || process.env.VITE_SUPABASE_ANON_KEY
+  || process.env.SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_ANON_KEY
+const configuredServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.SUPABASE_SECRET_KEY
+const local = configuredUrl && configuredKey && configuredServiceKey ? {} : localSupabaseEnv()
 const url = process.env.VITE_SUPABASE_URL
   || process.env.SUPABASE_URL
   || envFile.VITE_SUPABASE_URL
@@ -380,6 +390,11 @@ async function runVerification(context) {
   const firstTeam = members.find((member) => member.user_id === first.user.id)?.team
   assert(firstTeam === 'a' || firstTeam === 'b', '승자 팀을 결정할 수 없습니다.')
 
+  const firstAcceptance = await rpc(first.client, 'accept_match', { p_match_id: context.matchId })
+  assert(firstAcceptance.phase === 'queue', '첫 번째 매칭 수락 뒤 queue 상태가 유지되지 않았습니다.')
+  const secondAcceptance = await rpc(second.client, 'accept_match', { p_match_id: context.matchId })
+  assert(secondAcceptance.phase === 'scheduling', '전원 매칭 수락 뒤 scheduling 단계로 전환되지 않았습니다.')
+
   const firstSlotVote = assertKeys(
     await rpc(first.client, 'vote_match_slot', {
       p_match_id: context.matchId,
@@ -580,6 +595,20 @@ async function runVerification(context) {
   assert(completionRows.find((row) => row.user_id === first.user.id)?.completed_at, '첫 참가자의 completed_at이 기록되지 않았습니다.')
   assert(completionRows.find((row) => row.user_id === second.user.id)?.completed_at === null, '상대의 결과 확인이 자동 완료되었습니다.')
 
+  await requireData(
+    await admin
+      .from('venue_slots')
+      .update({
+        starts_at: futureStart.toISOString(),
+        ends_at: futureEnd.toISOString(),
+        status: 'open',
+        reserved_match_id: null,
+      })
+      .eq('id', context.slotId)
+      .select('id')
+      .single(),
+    '완료 후 재매칭용 미래 슬롯 복구 실패',
+  )
   const nextQueue = await rpc(first.client, 'join_match_queue', queueArgs)
   assert(nextQueue.status === 'waiting', '결과를 확인한 사용자가 다음 매칭을 시작하지 못했습니다.')
   assert(await rpc(first.client, 'cancel_match_queue') === true, '완료 후 생성한 검증 큐를 취소하지 못했습니다.')

@@ -16,7 +16,10 @@
     "verify:mvp": "node scripts/verify-mvp.mjs",
     "verify:achievements": "node scripts/verify-achievements.mjs",
     "verify:honor": "node scripts/verify-honor.mjs",
-    "verify:backend": "npm run verify:mvp && npm run verify:achievements && npm run verify:honor"
+    "verify:lifecycle": "node scripts/verify-lifecycle-hardening.mjs",
+    "verify:acceptance": "node scripts/verify-match-acceptance.mjs",
+    "verify:sanctions": "node scripts/verify-sanctions.mjs",
+    "verify:backend": "npm run verify:mvp && npm run verify:achievements && npm run verify:honor && npm run verify:lifecycle && npm run verify:acceptance && npm run verify:sanctions"
   },
   "dependencies": {
     "@capacitor/android": "7.6.8",

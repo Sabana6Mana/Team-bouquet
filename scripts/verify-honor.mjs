@@ -37,8 +37,18 @@ function localSupabaseEnv() {
   }
 }
 
-const local = localSupabaseEnv()
 const envFile = dotenvFile()
+const configuredUrl = process.env.VITE_SUPABASE_URL
+  || process.env.SUPABASE_URL
+  || envFile.VITE_SUPABASE_URL
+const configuredKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY
+  || process.env.VITE_SUPABASE_ANON_KEY
+  || process.env.SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_PUBLISHABLE_KEY
+  || envFile.VITE_SUPABASE_ANON_KEY
+const configuredServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.SUPABASE_SECRET_KEY
+const local = configuredUrl && configuredKey && configuredServiceKey ? {} : localSupabaseEnv()
 const url = process.env.VITE_SUPABASE_URL
   || process.env.SUPABASE_URL
   || envFile.VITE_SUPABASE_URL
