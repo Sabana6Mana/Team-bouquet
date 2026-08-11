@@ -105,6 +105,8 @@ interface AppState {
    */
   forceDemoMatch: (sport: SportId, mode: MatchMode) => void
   cancelMatch: () => void
+  acceptMatch: () => void
+  expireMatchAcceptance: () => void
   /** slot은 encodeSlot(날짜 offset, 시각) 으로 인코딩된 값 */
   vote: (slot: number) => void
   sendChat: (text: string) => void
@@ -310,6 +312,46 @@ export const useApp = create<AppState>()(
         }
         set({ match: null })
         endForcedDemo(set)
+      },
+
+      acceptMatch: () => {
+        const m = get().match
+        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline || !serverMode()) return
+        const meId = get().me.id
+        const previous = m.accepted?.[meId] ?? false
+        set({ match: { ...m, accepted: { ...m.accepted, [meId]: true } } })
+        void backendApi.matches.accept(m.id).then((result) => {
+          set((state) => ({
+            match: result.phase === 'canceled' && state.match?.id === m.id ? null : state.match,
+            backendError: null,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : '매칭 수락에 실패했습니다.'
+          set((state) => ({
+            match: state.match?.id === m.id
+              ? { ...state.match, accepted: { ...state.match.accepted, [meId]: previous } }
+              : state.match,
+            backendError: message,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+          get().notify('매칭 수락 실패', message)
+        })
+      },
+
+      expireMatchAcceptance: () => {
+        const m = get().match
+        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline || !serverMode()) return
+        void backendApi.matches.expireAcceptance(m.id).then((result) => {
+          set((state) => ({
+            match: result.phase === 'canceled' && state.match?.id === m.id ? null : state.match,
+            backendError: null,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : '매칭 수락 만료 처리에 실패했습니다.'
+          set({ backendError: message })
+        })
       },
 
       /* ─────────────── 일정 조율 ─────────────── */

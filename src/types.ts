@@ -105,6 +105,10 @@ export interface Match {
   hostId: string
   players: Player[]
   phase: MatchPhase
+  /** 매칭 성사 뒤 전원이 수락해야 하는 시각(ms). 대기열 placeholder에는 없다. */
+  acceptanceDeadline?: number
+  /** playerId -> 5분 매칭 수락 여부 */
+  accepted?: Record<string, boolean>
   /** playerId -> 투표한 슬롯 (encodeSlot 으로 날짜+시각을 인코딩) */
   votes: Record<string, number>
   confirmedSlot: number | null

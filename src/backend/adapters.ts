@@ -236,6 +236,12 @@ export function currentMatchToAppMatch(
     hostId: match.host_id,
     players: current.players.map((player) => matchPlayerToApp(player, currentUserId)),
     phase: asPhase(match.phase),
+    acceptanceDeadline: match.acceptance_deadline
+      ? new Date(match.acceptance_deadline).getTime()
+      : undefined,
+    accepted: Object.fromEntries(
+      current.players.map((member) => [member.user_id, Boolean(member.accepted_at)]),
+    ),
     votes,
     confirmedSlot: match.confirmed_slot_id
       ? encodedById[match.confirmed_slot_id] ?? null

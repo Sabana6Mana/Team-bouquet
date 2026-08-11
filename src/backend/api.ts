@@ -425,7 +425,12 @@ async function hydrateMatch(match: Match): Promise<CurrentMatch> {
   const client = requireSupabase()
   const [membersResult, messagesResult, slotVotesResult, resultVotesResult, honorsResult] = await Promise.all([
     client.from('match_members').select('*').eq('match_id', match.id).order('joined_at'),
-    client.from('chat_messages').select('*').eq('match_id', match.id).order('created_at'),
+    client
+      .from('chat_messages')
+      .select('*')
+      .eq('match_id', match.id)
+      .order('created_at', { ascending: false })
+      .limit(100),
     client.from('slot_votes').select('*').eq('match_id', match.id),
     client.from('result_votes').select('*').eq('match_id', match.id),
     client.from('match_honors').select('*').eq('match_id', match.id),
@@ -468,7 +473,7 @@ async function hydrateMatch(match: Match): Promise<CurrentMatch> {
       profile: profiles.get(member.user_id) ?? null,
       ratings: ratings.filter((rating) => rating.profile_id === member.user_id),
     })),
-    messages: messagesResult.data ?? [],
+    messages: (messagesResult.data ?? []).reverse(),
     slotVotes: slotVotesResult.data ?? [],
     resultVotes: resultVotesResult.data ?? [],
     honors: honorsResult.data ?? [],
@@ -477,7 +482,10 @@ async function hydrateMatch(match: Match): Promise<CurrentMatch> {
 
 export const matchApi = {
   async getCurrent(): Promise<CurrentMatch | null> {
+    const client = requireSupabase()
     const user = await requireUser()
+    const { error } = await client.rpc('expire_my_overdue_acceptances')
+    if (error) fail('만료된 매칭 정리 실패', error)
     const match = await findCurrentMatch(user.id)
     return match ? hydrateMatch(match) : null
   },
@@ -488,6 +496,26 @@ export const matchApi = {
     const { data, error } = await client.from('matches').select('*').eq('id', id).maybeSingle()
     if (error) fail('매칭 조회 실패', error)
     return data ? hydrateMatch(data) : null
+  },
+
+  async accept(matchId: string): Promise<MatchMutationResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('accept_match', { p_match_id: matchId })
+    if (error) fail('매칭 수락 실패', error)
+    const raw = data ?? null
+    return { matchId, phase: jsonString(jsonObject(raw)?.phase), raw }
+  },
+
+  async expireAcceptance(matchId: string): Promise<MatchMutationResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('expire_match_acceptance', {
+      p_match_id: matchId,
+    })
+    if (error) fail('매칭 수락 만료 처리 실패', error)
+    const raw = data ?? null
+    return { matchId, phase: jsonString(jsonObject(raw)?.phase), raw }
   },
 
   async setTeams(matchId: string, teamA: string[], teamB: string[]): Promise<MatchMutationResult> {
@@ -611,6 +639,7 @@ export const historyApi = {
       .from('match_members')
       .select('match_id')
       .eq('user_id', user.id)
+      .order('joined_at', { ascending: false })
       .limit(Math.max(limit * 3, 60))
     if (memberships.error) fail('내 경기 참가 기록 조회 실패', memberships.error)
     const ids = [...new Set((memberships.data ?? []).map((row) => row.match_id))]
@@ -709,15 +738,13 @@ export const messageApi = {
 
   async send(matchId: string, body: string): Promise<ChatMessage> {
     const client = requireSupabase()
-    const user = await requireUser()
+    await requireUser()
     const trimmed = body.trim()
     if (!trimmed) throw new Error('메시지를 입력해 주세요.')
-    const row: TableInsert<'chat_messages'> = {
-      match_id: matchId,
-      sender_id: user.id,
-      body: trimmed,
-    }
-    const { data, error } = await client.from('chat_messages').insert(row).select('*').single()
+    const { data, error } = await client.rpc('send_match_message', {
+      p_match_id: matchId,
+      p_body: trimmed,
+    })
     if (error) fail('메시지 전송 실패', error)
     return data
   },

@@ -241,6 +241,7 @@ export type Database = {
           winner_team: TeamSide | null
           score: string | null
           finalized_at: string | null
+          acceptance_deadline: string | null
           created_at: string
           updated_at: string
         }
@@ -257,6 +258,7 @@ export type Database = {
           winner_team?: TeamSide | null
           score?: string | null
           finalized_at?: string | null
+          acceptance_deadline?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -267,6 +269,7 @@ export type Database = {
           winner_team?: TeamSide | null
           score?: string | null
           finalized_at?: string | null
+          acceptance_deadline?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -283,6 +286,7 @@ export type Database = {
           rating_delta: number | null
           rating_after: number | null
           completed_at: string | null
+          accepted_at: string | null
           joined_at: string
           updated_at: string
         }
@@ -297,6 +301,7 @@ export type Database = {
           rating_delta?: number | null
           rating_after?: number | null
           completed_at?: string | null
+          accepted_at?: string | null
           joined_at?: string
           updated_at?: string
         }
@@ -307,6 +312,7 @@ export type Database = {
           rating_delta?: number | null
           rating_after?: number | null
           completed_at?: string | null
+          accepted_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -411,6 +417,8 @@ export type Database = {
           reason: string
           details: string | null
           status: ReportStatus
+          reviewed_at: string | null
+          review_note: string | null
           created_at: string
           updated_at: string
         }
@@ -422,11 +430,40 @@ export type Database = {
           reason: string
           details?: string | null
           status?: ReportStatus
+          reviewed_at?: string | null
+          review_note?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           status?: ReportStatus
+          reviewed_at?: string | null
+          review_note?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      account_sanctions: {
+        Row: {
+          profile_id: string
+          upheld_report_count: number
+          permanently_banned_at: string | null
+          last_reviewed_report_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          upheld_report_count?: number
+          permanently_banned_at?: string | null
+          last_reviewed_report_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          upheld_report_count?: number
+          permanently_banned_at?: string | null
+          last_reviewed_report_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -616,6 +653,22 @@ export type Database = {
         }
         Returns: Json
       }
+      accept_match: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      expire_match_acceptance: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      expire_my_overdue_acceptances: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_my_achievements: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -656,6 +709,21 @@ export type Database = {
           p_match_id: string
           p_receiver_id: string
           p_honor_type: HonorTypeCode
+        }
+        Returns: Json
+      }
+      send_match_message: {
+        Args: {
+          p_match_id: string
+          p_body: string
+        }
+        Returns: Database['public']['Tables']['chat_messages']['Row']
+      }
+      review_match_report: {
+        Args: {
+          p_report_id: string
+          p_upheld: boolean
+          p_review_note?: string | null
         }
         Returns: Json
       }

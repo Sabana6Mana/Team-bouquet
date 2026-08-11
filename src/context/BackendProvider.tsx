@@ -227,6 +227,12 @@ function matchFromBackend(
       hostId: snapshot.match.host_id,
       players,
       phase,
+      acceptanceDeadline: snapshot.match.acceptance_deadline
+        ? new Date(snapshot.match.acceptance_deadline).getTime()
+        : undefined,
+      accepted: Object.fromEntries(
+        members.map((member) => [member.user_id, Boolean(member.accepted_at)]),
+      ),
       votes,
       confirmedSlot,
       confirmedSlotEndsAt: snapshot.confirmedSlot
