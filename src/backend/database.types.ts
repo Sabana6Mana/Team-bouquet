@@ -28,6 +28,7 @@ export type SlotStatus = 'open' | 'held' | 'booked' | 'canceled'
 export type TeamSide = 'a' | 'b'
 export type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed'
 export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+export type HonorTypeCode = 'manner' | 'skill' | 'punctual' | 'fun'
 
 export type Database = {
   public: {
@@ -40,6 +41,11 @@ export type Database = {
           interests: SportCode[]
           equipped_title_code: string | null
           onboarding_completed_at: string | null
+          honor_total: number
+          honor_manner: number
+          honor_skill: number
+          honor_punctual: number
+          honor_fun: number
           created_at: string
           updated_at: string
         }
@@ -50,6 +56,11 @@ export type Database = {
           interests?: SportCode[]
           equipped_title_code?: string | null
           onboarding_completed_at?: string | null
+          honor_total?: number
+          honor_manner?: number
+          honor_skill?: number
+          honor_punctual?: number
+          honor_fun?: number
           created_at?: string
           updated_at?: string
         }
@@ -59,6 +70,11 @@ export type Database = {
           interests?: SportCode[]
           equipped_title_code?: string | null
           onboarding_completed_at?: string | null
+          honor_total?: number
+          honor_manner?: number
+          honor_skill?: number
+          honor_punctual?: number
+          honor_fun?: number
           updated_at?: string
         }
         Relationships: []
@@ -415,6 +431,26 @@ export type Database = {
         }
         Relationships: []
       }
+      match_honors: {
+        Row: {
+          id: string
+          match_id: string
+          giver_id: string
+          receiver_id: string
+          honor_type: HonorTypeCode
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          match_id: string
+          giver_id: string
+          receiver_id: string
+          honor_type: HonorTypeCode
+          created_at?: string
+        }
+        Update: never
+        Relationships: []
+      }
       rating_events: {
         Row: {
           id: string
@@ -615,6 +651,14 @@ export type Database = {
         }
         Returns: Database['public']['Tables']['profiles']['Row']
       }
+      give_match_honor: {
+        Args: {
+          p_match_id: string
+          p_receiver_id: string
+          p_honor_type: HonorTypeCode
+        }
+        Returns: Json
+      }
     }
     Enums: {
       sport_code: SportCode
@@ -624,6 +668,7 @@ export type Database = {
       slot_status: SlotStatus
       team_side: TeamSide
       report_status: ReportStatus
+      honor_type: HonorTypeCode
     }
     CompositeTypes: Record<string, never>
   }
