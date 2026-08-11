@@ -129,7 +129,13 @@ export const authApi = {
       : `${window.location.origin}/auth/callback`
     const { data, error } = await client.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo: redirectTo ?? fallbackRedirect },
+      options: {
+        redirectTo: redirectTo ?? fallbackRedirect,
+        // MATCHPOINT collects its own nickname during onboarding and does not
+        // require a Kakao email. Keep Kakao's consent screen to basic profile
+        // fields so non-Biz Kakao apps can sign in without account_email.
+        queryParams: { scope: 'profile_nickname profile_image' },
+      },
     })
     if (error) fail('카카오 로그인 시작 실패', error)
     return data
