@@ -10,6 +10,15 @@ import {
 } from '../lib/nativeRuntime'
 import type { Json, TableInsert, TableRow } from './database.types'
 import type { HonorType } from '../types'
+import {
+  type GameplayOutcome,
+  type GameplaySeasonQuest,
+  type GameplaySummary,
+  type SeasonQuestCode,
+  unavailableGameplaySummary,
+} from '../data/gameplay'
+import { achievementDefinition } from '../data/achievements'
+import { VENUES } from '../data/seed'
 import type {
   BackendAchievement,
   BackendAuthState,
@@ -91,6 +100,132 @@ function jsonString(value: Json | undefined): string | undefined {
 
 function jsonBoolean(value: Json | undefined): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined
+}
+
+function jsonNumber(value: Json | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function jsonArray(value: Json | undefined): Json[] {
+  return Array.isArray(value) ? value : []
+}
+
+function jsonField(value: Record<string, Json | undefined> | null, snake: string, camel?: string): Json | undefined {
+  return value?.[snake] ?? (camel ? value?.[camel] : undefined)
+}
+
+function gameplayEndsLabel(value: string | undefined): string {
+  if (!value) return '이번 주 종료'
+  const endsAt = new Date(value)
+  if (Number.isNaN(endsAt.getTime())) return '이번 주 종료'
+  const remainingDays = Math.max(0, Math.ceil((endsAt.getTime() - Date.now()) / 86_400_000))
+  return remainingDays === 0 ? '오늘 종료' : `D-${remainingDays}`
+}
+
+const SEASON_QUEST_CODES = new Set<SeasonQuestCode>(['first_match', 'venues_3', 'boss_raider'])
+
+function gameplaySummaryFromJson(raw: Json): GameplaySummary | null {
+  const root = jsonObject(raw)
+  const regionRaw = jsonObject(jsonField(root, 'region') ?? null)
+  const bossRaw = jsonObject(jsonField(root, 'boss') ?? null)
+  const seasonRaw = jsonObject(jsonField(root, 'season') ?? null)
+  if (!regionRaw) return null
+  const unavailable = unavailableGameplaySummary()
+
+  const rawVenues = jsonArray(jsonField(root, 'venues'))
+    .map((value) => jsonObject(value))
+    .filter((value): value is Record<string, Json | undefined> => Boolean(value))
+  const venues = VENUES.map((venue) => {
+    const progress = rawVenues.find((value) => (
+      jsonString(jsonField(value, 'venue_id', 'venueId')) ?? jsonString(jsonField(value, 'id'))
+    ) === venue.id)
+    const discoveredAt = jsonString(jsonField(progress ?? null, 'discovered_at', 'discoveredAt')) ?? null
+    const matchCount = jsonNumber(jsonField(progress ?? null, 'visits', 'matchCount')) ?? 0
+    return {
+      id: venue.id,
+      name: venue.name,
+      address: venue.address,
+      sports: [...venue.sports],
+      icon: venue.sports[0] === 'badminton' ? '🏸'
+        : venue.sports[0] === 'tennis' ? '🎾'
+          : venue.sports[0] === 'tabletennis' ? '🏓' : '🏀',
+      discovered: Boolean(discoveredAt || matchCount > 0 || jsonBoolean(jsonField(progress ?? null, 'discovered'))),
+      discoveredAt,
+      matchCount,
+    }
+  })
+  const discovered = jsonNumber(jsonField(regionRaw, 'discovered'))
+    ?? venues.filter((venue) => venue.discovered).length
+  const total = jsonNumber(jsonField(regionRaw, 'total')) ?? venues.length
+
+  const bossVenueId = jsonString(jsonField(bossRaw, 'venue_id', 'venueId')) ?? ''
+  const bossVenue = VENUES.find((venue) => venue.id === bossVenueId)
+  const maxHp = jsonNumber(jsonField(bossRaw, 'max_hp', 'maxHp')) ?? 0
+  const remainingHp = jsonNumber(jsonField(bossRaw, 'remaining_hp', 'remainingHp')) ?? maxHp
+  const myContribution = jsonNumber(jsonField(bossRaw, 'my_contribution', 'myContribution')) ?? 0
+  const thronePoints = jsonNumber(jsonField(bossRaw, 'throne_points', 'thronePoints')) ?? 0
+  const endsAt = jsonString(jsonField(bossRaw, 'ends_at', 'endsAt'))
+
+  const quests: GameplaySeasonQuest[] = jsonArray(jsonField(seasonRaw, 'quests'))
+    .map((value) => jsonObject(value))
+    .filter((value): value is Record<string, Json | undefined> => Boolean(value))
+    .flatMap((value) => {
+      const code = jsonString(jsonField(value, 'achievement_code', 'achievementCode'))
+      if (!code || !SEASON_QUEST_CODES.has(code as SeasonQuestCode)) return []
+      const definition = achievementDefinition(code)
+      const progress = jsonNumber(jsonField(value, 'progress')) ?? 0
+      const target = jsonNumber(jsonField(value, 'target')) ?? definition?.target ?? 1
+      return [{
+        code: code as SeasonQuestCode,
+        name: jsonString(jsonField(value, 'name')) ?? definition?.name ?? code,
+        description: jsonString(jsonField(value, 'description')) ?? definition?.description ?? '',
+        icon: jsonString(jsonField(value, 'icon')) ?? definition?.icon ?? '🎯',
+        rewardTitle: jsonString(jsonField(value, 'reward_title', 'rewardTitle')) ?? definition?.rewardTitle ?? '',
+        progress: Math.min(progress, target),
+        target,
+        completed: Boolean(jsonString(jsonField(value, 'unlocked_at', 'unlockedAt'))) || progress >= target,
+      }]
+    })
+  const seasonEndsAt = jsonString(jsonField(seasonRaw, 'ends_at', 'endsAt'))
+
+  return {
+    region: {
+      id: jsonString(jsonField(regionRaw, 'code', 'id')) ?? 'gangnam',
+      name: jsonString(jsonField(regionRaw, 'name')) ?? '강남구 도감',
+      discovered,
+      total,
+      completionPercent: total > 0 ? Math.round((discovered / total) * 100) : 0,
+    },
+    venues,
+    boss: bossRaw ? {
+      venueId: bossVenueId,
+      venueName: bossVenue?.name ?? '주간 보스 체육관',
+      name: '주간 코트 가디언',
+      icon: '👾',
+      maxHp,
+      remainingHp,
+      startingDamage: Math.max(0, maxHp - remainingHp - myContribution),
+      totalDamage: Math.max(0, maxHp - remainingHp),
+      myContribution,
+      defeated: jsonBoolean(jsonField(bossRaw, 'defeated')) ?? remainingHp <= 0,
+      endsLabel: gameplayEndsLabel(endsAt),
+      throne: {
+        nickname: jsonString(jsonField(bossRaw, 'throne_name', 'throneName')) ?? '도전자 모집 중',
+        avatar: '🐲',
+        contribution: thronePoints,
+        isMe: false,
+      },
+    } : unavailable.boss,
+    season: seasonRaw ? {
+      id: jsonString(jsonField(seasonRaw, 'code', 'id')) ?? 'gangnam-expedition-1',
+      name: jsonString(jsonField(seasonRaw, 'name')) ?? '강남 원정대',
+      subtitle: '운동으로 강남의 거점을 하나씩 밝혀 보세요.',
+      endsLabel: gameplayEndsLabel(seasonEndsAt),
+      completed: quests.filter((quest) => quest.completed).length,
+      total: quests.length,
+      quests,
+    } : unavailable.season,
+  }
 }
 
 function toRealtimeChange<Row extends Record<string, unknown>>(
@@ -284,6 +419,73 @@ export const achievementApi = {
     })
     if (error) fail('칭호 장착 실패', error)
     return data
+  },
+}
+
+export const gameplayApi = {
+  async syncMatch(matchId: string): Promise<Json> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('sync_my_match_gameplay', { p_match_id: matchId })
+    if (error) fail('게임 진행 동기화 실패', error)
+    return data ?? null
+  },
+
+  async getSummary(): Promise<GameplaySummary | null> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('get_my_gameplay_summary')
+    if (error) fail('게임 진행 조회 실패', error)
+    return gameplaySummaryFromJson(data ?? null)
+  },
+
+  async getMatchOutcome(
+    matchId: string,
+    summary: GameplaySummary | null,
+  ): Promise<GameplayOutcome | null> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('get_my_match_gameplay_outcome', { p_match_id: matchId })
+    if (error) fail('경기 게임 보상 조회 실패', error)
+    const value = jsonObject(data ?? null)
+    if (!value) return null
+    const venueId = jsonString(jsonField(value, 'venue_id', 'venueId')) ?? ''
+    const venue = VENUES.find((item) => item.id === venueId)
+    const unlockedCodes = jsonArray(jsonField(value, 'unlocked_achievement_codes', 'unlockedAchievementCodes'))
+      .filter((item): item is string => typeof item === 'string')
+    const unlockedQuests = unlockedCodes.flatMap((code) => {
+      const fromSeason = summary?.season.quests.find((quest) => quest.code === code)
+      if (fromSeason) return [fromSeason]
+      const definition = achievementDefinition(code)
+      if (!definition || !SEASON_QUEST_CODES.has(code as SeasonQuestCode)) return []
+      return [{
+        code: code as SeasonQuestCode,
+        name: definition.name,
+        description: definition.description,
+        icon: definition.icon,
+        rewardTitle: definition.rewardTitle,
+        progress: definition.target,
+        target: definition.target,
+        completed: true,
+      }]
+    })
+    return {
+      matchId: jsonString(jsonField(value, 'match_id', 'matchId')) ?? matchId,
+      venueId,
+      venueName: venue?.name ?? '새 체육관',
+      newVenue: jsonBoolean(jsonField(value, 'new_venue', 'newVenue')) ?? false,
+      discovered: jsonNumber(jsonField(value, 'collection_discovered', 'collectionDiscovered'))
+        ?? summary?.region.discovered ?? 0,
+      totalVenues: jsonNumber(jsonField(value, 'collection_total', 'collectionTotal'))
+        ?? summary?.region.total ?? VENUES.length,
+      bossDamage: jsonNumber(jsonField(value, 'boss_damage', 'bossDamage')) ?? 0,
+      bossRemainingHp: jsonNumber(jsonField(value, 'boss_remaining_hp', 'bossRemainingHp'))
+        ?? summary?.boss.remainingHp ?? 0,
+      bossMaxHp: summary?.boss.maxHp ?? 10,
+      seasonCompleted: summary?.season.completed ?? 0,
+      seasonTotal: summary?.season.total ?? 0,
+      unlockedQuests,
+    }
   },
 }
 
@@ -862,6 +1064,7 @@ export const backendApi = {
   reports: reportApi,
   honors: honorApi,
   achievements: achievementApi,
+  gameplay: gameplayApi,
 }
 
 export type { ChatMessage, CurrentMatch, Match, MatchHonor, MatchMember, ResultVote, SlotVote }

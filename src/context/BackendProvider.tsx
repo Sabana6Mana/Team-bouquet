@@ -11,6 +11,7 @@ import {
 import { encodeSlot } from '../lib/game'
 import { forcedDemo } from '../lib/forcedDemo'
 import { titleForAchievement } from '../data/achievements'
+import type { GameplayOutcome, GameplaySummary } from '../data/gameplay'
 import { useApp } from '../store/useApp'
 import type {
   AchievementProgress, Account, AppNotification, HonorCounts, Match, MatchPhase, MatchRecord, Player, SportId,
@@ -31,6 +32,10 @@ interface BackendRuntime {
   profileReady: boolean
   achievements: AchievementProgress[]
   achievementsReady: boolean
+  /** 경기 완료로 갱신되는 지역 도감·주간 보스·시즌 퀘스트 읽기 모델. */
+  gameplay: GameplaySummary | null
+  /** 현재 결과 화면에서 보여 줄 이번 경기의 게임 보상 변화량. */
+  gameplayOutcome: GameplayOutcome | null
   error: string | null
   signInAnonymously: () => Promise<void>
   signInWithKakao: () => Promise<void>
@@ -333,6 +338,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [achievements, setAchievements] = useState<AchievementProgress[]>([])
   const [achievementsReady, setAchievementsReady] = useState(!backendConfig.configured)
+  const [gameplay, setGameplay] = useState<GameplaySummary | null>(null)
+  const [gameplayOutcome, setGameplayOutcome] = useState<GameplayOutcome | null>(null)
   const [currentMatchId, setCurrentMatchId] = useState<string | null>(null)
   const sessionUserId = useRef<string | null>(null)
   const refreshInFlight = useRef<Promise<void> | null>(null)
@@ -373,17 +380,27 @@ export function BackendProvider({ children }: { children: ReactNode }) {
             setProfileReady(false)
             setAchievements([])
             setAchievementsReady(true)
+            setGameplay(null)
+            setGameplayOutcome(null)
             setError(null)
             continue
           }
 
           const mapped = playerFromProfile(profile, userId)
-          const [snapshot, achievementList, historyList, notificationList] = await Promise.all([
-            backendApi.matches.getCurrent(),
+          const snapshot = await backendApi.matches.getCurrent()
+          if (snapshot?.match.finalized_at) {
+            // 선택 기능 오류가 경기/ELO 확정을 막지는 않으며, 다음 refresh에서 다시 시도한다.
+            await backendApi.gameplay.syncMatch(snapshot.match.id).catch(() => null)
+          }
+          const [achievementList, historyList, notificationList, gameplaySummary] = await Promise.all([
             backendApi.achievements.listMine(),
             backendApi.history.listMine(),
             backendApi.notifications.listMine(),
+            backendApi.gameplay.getSummary().catch(() => null),
           ])
+          const currentGameplayOutcome = snapshot?.match.finalized_at
+            ? await backendApi.gameplay.getMatchOutcome(snapshot.match.id, gameplaySummary).catch(() => null)
+            : null
           if (sessionUserId.current !== userId) return
           const unlocked = new Set(
             achievementList.filter((achievement) => achievement.unlockedAt).map((achievement) => achievement.code),
@@ -402,6 +419,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
           previousUnlocks.current = unlocked
           setAchievements(achievementList)
           setAchievementsReady(true)
+          setGameplay(gameplaySummary)
+          setGameplayOutcome(currentGameplayOutcome)
           if (snapshot) {
             const slots = snapshot.match.venue_id
               ? await backendApi.venues.listOpenSlots(snapshot.match.venue_id)
@@ -481,6 +500,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         setProfileReady(false)
         setAchievements([])
         setAchievementsReady(true)
+        setGameplay(null)
+        setGameplayOutcome(null)
         previousUnlocks.current = null
         useApp.setState({
           account: null,
@@ -507,12 +528,17 @@ export function BackendProvider({ children }: { children: ReactNode }) {
         refreshQueued.current = false
         setReady(true)
         setProfileReady(false)
+        setGameplay(null)
+        setGameplayOutcome(null)
         useApp.getState().reset()
         useApp.setState({ backendStatus: 'ready', backendUserId: null })
       } else if (userChanged) {
         setReady(false)
         setProfileReady(false)
+        setAchievements([])
         setAchievementsReady(false)
+        setGameplay(null)
+        setGameplayOutcome(null)
         previousUnlocks.current = null
         useApp.setState({ backendStatus: 'loading', backendError: null })
       }
@@ -607,6 +633,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
     profileReady,
     achievements,
     achievementsReady,
+    gameplay,
+    gameplayOutcome,
     error,
     signInAnonymously: async () => {
       setError(null)
@@ -635,6 +663,8 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       setProfileReady(false)
       setAchievements([])
       setAchievementsReady(true)
+      setGameplay(null)
+      setGameplayOutcome(null)
       previousUnlocks.current = null
       useApp.getState().reset()
     },
@@ -655,7 +685,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       }
     },
     refresh,
-  }), [ready, session, profileReady, achievements, achievementsReady, error, refresh, testMatch])
+  }), [ready, session, profileReady, achievements, achievementsReady, gameplay, gameplayOutcome, error, refresh, testMatch])
 
   return <BackendContext.Provider value={value}>{children}</BackendContext.Provider>
 }

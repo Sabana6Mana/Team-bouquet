@@ -122,6 +122,8 @@ export type Database = {
           lat: number
           lng: number
           price_per_hour: number
+          region_code: string | null
+          checkin_radius_m: number
           active: boolean
           created_at: string
           updated_at: string
@@ -134,6 +136,8 @@ export type Database = {
           lat: number
           lng: number
           price_per_hour: number
+          region_code?: string | null
+          checkin_radius_m?: number
           active?: boolean
           created_at?: string
           updated_at?: string
@@ -145,6 +149,8 @@ export type Database = {
           lat?: number
           lng?: number
           price_per_hour?: number
+          region_code?: string | null
+          checkin_radius_m?: number
           active?: boolean
           updated_at?: string
         }
@@ -689,6 +695,22 @@ export type Database = {
           p_achievement_code: string | null
         }
         Returns: string | null
+      }
+      sync_my_match_gameplay: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      get_my_gameplay_summary: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_my_match_gameplay_outcome: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
       }
       is_nickname_available: {
         Args: {
