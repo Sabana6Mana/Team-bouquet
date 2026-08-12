@@ -5,8 +5,9 @@ import { NPCS } from '../data/seed'
 import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SPORT_LIST, SPORTS, TIERS, tierOf } from '../lib/game'
 import { useBackend } from '../context/BackendProvider'
-import { WeeklyThroneCard } from '../components/gameplay/GameplayWidgets'
+import { WeeklyBossCard } from '../components/gameplay/GameplayWidgets'
 import { Jumbotron } from '../components/ui'
+import PlayerAvatar from '../components/PlayerAvatar'
 import type { SportId } from '../types'
 
 export default function RankingScreen() {
@@ -53,10 +54,13 @@ export default function RankingScreen() {
           })}
         </div>
 
-        <WeeklyThroneCard
-          gameplay={gameplay}
-          onOpenVenue={(venueId) => nav(`/?venue=${venueId}`)}
-        />
+        {sport === 'badminton' && (
+          <WeeklyBossCard
+            gameplay={gameplay}
+            onOpenVenue={(venueId) => nav(`/?venue=${venueId}`)}
+            onChallenge={() => nav('/boss')}
+          />
+        )}
 
         {/* 내 순위 카드 */}
         <div
@@ -64,7 +68,7 @@ export default function RankingScreen() {
           style={{ gap: 13, borderColor: `${myTier.color}55`, background: `linear-gradient(160deg, ${myTier.color}18, transparent)` }}
         >
           <div className="row" style={{ gap: 13 }}>
-            <div className="avatar lg" style={{ borderColor: `${myTier.color}66` }}>{me.avatar}</div>
+            <PlayerAvatar player={me} className="avatar lg" style={{ borderColor: `${myTier.color}66` }} />
             <div className="stack grow" style={{ gap: 5 }}>
               <strong style={{ fontSize: 17 }}>{me.nickname}</strong>
               {me.title && <span className="profile-title">《{me.title}》</span>}
@@ -126,7 +130,7 @@ export default function RankingScreen() {
               >
                 <span className={`rank${i < 3 ? ` g${i + 1}` : ''}`}>{i + 1}</span>
                 <div className="row grow" style={{ gap: 9, minWidth: 0 }}>
-                  <span style={{ fontSize: 17 }}>{p.avatar}</span>
+                  <PlayerAvatar player={p} style={{ width: 26, height: 26, flexShrink: 0 }} />
                   <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                     <span
                       style={{

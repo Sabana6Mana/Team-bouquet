@@ -340,37 +340,26 @@ a { color: inherit; text-decoration: none; }
   line-height: 1;
   pointer-events: none;
 }
-.venue-crown {
-  position: absolute;
-  left: 50%;
-  top: 1px;
-  z-index: 3;
-  transform: translateX(-50%) translateY(6px) scale(0.72);
-  opacity: 0;
-  color: #f8b913;
-  font-size: 31px;
-  line-height: 1;
-  text-shadow: 0 2px 0 #fff3ae, 0 0 13px rgba(248, 185, 19, 0.78);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: none;
-}
 .venue-game-status {
   position: absolute;
-  left: 12px;
+  left: 7px;
   top: 18px;
   z-index: 4;
   display: grid;
-  min-width: 27px;
-  height: 27px;
-  padding: 0 6px;
+  min-width: 76px;
+  height: 26px;
+  padding: 0 9px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.92);
   border-radius: 999px;
   color: #ffffff;
   background: rgba(45, 57, 52, 0.84);
   box-shadow: 0 4px 12px rgba(19, 32, 27, 0.28);
-  font-size: 15px;
+  font-size: 10.5px;
+  font-weight: 950;
+  letter-spacing: 0.35px;
   line-height: 1;
+  white-space: nowrap;
   pointer-events: none;
 }
 .venue-entity.is-boss .venue-game-status {
@@ -432,14 +421,13 @@ a { color: inherit; text-decoration: none; }
   filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
 }
 .venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
-.venue-entity.is-throne .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 .venue-entity.is-undiscovered:not(.is-selected):not(.is-boss) { filter: grayscale(0.88); opacity: 0.67; }
 .venue-entity.is-undiscovered .venue-sport-badge {
   color: #eff5f2;
   background: #6f7d76;
   box-shadow: 0 2px 9px rgba(31, 50, 40, 0.22);
 }
-.venue-entity.is-hot:not(.is-selected)::after {
+.venue-entity.is-hot:not(.is-selected):not(.is-boss)::after {
   content: '●';
   position: absolute;
   right: 16px;
@@ -703,27 +691,31 @@ a { color: inherit; text-decoration: none; }
   animation: flame 1.15s ease-in-out infinite;
   pointer-events: none;
 }
-.marker-game-badge,
-.marker-throne {
+.marker-game-badge {
   position: absolute;
   z-index: 3;
   line-height: 1;
   pointer-events: none;
 }
 .marker-game-badge {
-  left: -12px;
-  top: -13px;
-  font-size: 20px;
-  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.85));
+  left: -16px;
+  top: -29px;
+  display: flex;
+  min-width: 78px;
+  height: 24px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(145deg, #7c3aed, #f97316);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18), 0 0 15px rgba(168, 85, 247, 0.68);
+  font-size: 10.5px;
+  font-weight: 950;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
   animation: bossPulse 1.8s ease-in-out infinite;
-}
-.marker-throne {
-  left: 50%;
-  top: -30px;
-  color: #f4b91e;
-  font-size: 25px;
-  text-shadow: 0 1px 0 #fff1a4, 0 0 9px rgba(244, 185, 30, 0.72);
-  transform: translateX(-50%);
 }
 .mk.is-undiscovered:not(.on):not(.is-boss) { filter: grayscale(0.88); opacity: 0.68; }
 .mk.is-undiscovered .marker-pin {
@@ -784,6 +776,35 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* 네이버 오버레이용 내 위치 표시 (지도와 함께 움직인다) */
+.nme-character,
+.me-character {
+  position: relative;
+  width: 68px;
+  height: 76px;
+  pointer-events: none;
+}
+.me-character { position: absolute; transform: translate(-50%, -88%); }
+.nme-character > span,
+.me-character > span {
+  position: absolute;
+  left: 50%; bottom: 1px;
+  width: 54px; height: 24px;
+  transform: translateX(-50%);
+  border: 2px solid #39e4f2;
+  border-radius: 50%;
+  background: rgba(34, 210, 238, 0.18);
+  box-shadow: 0 0 0 5px rgba(52, 224, 244, 0.13), 0 0 18px rgba(30, 210, 242, 0.65);
+  animation: playerPulse 2.2s ease-in-out infinite;
+}
+.nme-character > img,
+.me-character > img {
+  position: absolute;
+  left: 50%; bottom: 8px;
+  width: 60px; height: 60px;
+  object-fit: contain;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 6px 4px rgba(21, 75, 43, 0.34));
+}
 .nme {
   position: relative;
   width: 18px; height: 18px; border-radius: 50%;
@@ -1348,6 +1369,7 @@ a { color: inherit; text-decoration: none; }
 .arena-player__avatar {
   display: grid;
   place-items: center;
+  overflow: hidden;
   width: 3.4em;
   height: 3.4em;
   border-radius: 50%;
@@ -1779,8 +1801,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 .stage-player__body {
+  display: block;
   position: relative;
   z-index: 1;
+  width: var(--figure);
+  height: var(--figure);
   margin-bottom: calc(var(--figure) * 0.06);
   font-size: var(--figure);
   line-height: 1;
@@ -2169,7 +2194,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 14px;
   font-weight: 800;
 }
-.wide-pop__face { font-size: 52px; line-height: 1; }
+.wide-pop__face { display: block; width: 52px; height: 52px; font-size: 52px; line-height: 1; }
 .wide-pop__name { font-size: 15px; }
 .wide-pop__tier { font-size: 12px; font-weight: 800; }
 .wide-pop__stats {
@@ -2492,11 +2517,13 @@ a { color: inherit; text-decoration: none; }
 .avatar {
   display: grid; place-items: center;
   width: 40px; height: 40px; border-radius: 12px;
+  overflow: hidden;
   background: var(--surface-2); border: 1px solid var(--line);
   font-size: 20px; flex-shrink: 0;
 }
 .avatar.lg { width: 62px; height: 62px; border-radius: 18px; font-size: 30px; }
 .avatar.sm { width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
+.player-avatar__image { user-select: none; -webkit-user-drag: none; }
 
 .spinner {
   width: 92px; height: 92px; border-radius: 50%;

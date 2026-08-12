@@ -22,26 +22,47 @@ export interface GameplayRegionProgress {
   completionPercent: number
 }
 
-export interface GameplayThroneHolder {
+export type BossChallengeStatus = 'none' | 'active' | 'won' | 'lost' | 'abandoned'
+
+export interface GameplayBossOpponent {
   nickname: string
   avatar: string
-  contribution: number
-  isMe: boolean
+  avatarUrl: string | null
+  rating: number
 }
 
 export interface GameplayBoss {
+  eventId: string
   venueId: string
   venueName: string
   name: string
   icon: string
-  maxHp: number
-  remainingHp: number
-  startingDamage: number
-  totalDamage: number
-  myContribution: number
+  sport: 'badminton'
+  opponent: GameplayBossOpponent
+  challengeId: string | null
+  challengeStatus: BossChallengeStatus
+  canChallenge: boolean
+  titleUnlocked: boolean
+  rewardTitle: string
   defeated: boolean
   endsLabel: string
-  throne: GameplayThroneHolder
+}
+
+/** 배드민턴 보스전 시작/판정 RPC가 공통으로 돌려주는 결과다. */
+export interface BossChallengeResult {
+  challengeId: string
+  eventId: string
+  venueId: string
+  sport: 'badminton'
+  bossName: string
+  bossAvatarUrl: string | null
+  bossRating: number
+  status: Exclude<BossChallengeStatus, 'none'>
+  won: boolean | null
+  score: string | null
+  titleCode: 'boss_raider' | null
+  titleUnlocked: boolean
+  newlyUnlocked: boolean
 }
 
 export interface GameplaySeasonQuest {
@@ -84,23 +105,18 @@ export interface GameplayOutcome {
   newVenue: boolean
   discovered: number
   totalVenues: number
-  bossDamage: number
-  bossRemainingHp: number
-  bossMaxHp: number
   seasonCompleted: number
   seasonTotal: number
   unlockedQuests: GameplaySeasonQuest[]
 }
 
 const BOSS_VENUE_ID = 'v1'
-const BOSS_MAX_HP = 10
-const BOSS_STARTING_DAMAGE = 6
-const NATE_RUSH = {
-  nickname: 'Nate_Rush',
+const DEMO_BOSS = {
+  nickname: '셔틀콕 가디언',
   avatar: '🐲',
-  contribution: 3,
-  isMe: false,
-} satisfies GameplayThroneHolder
+  avatarUrl: null,
+  rating: 1350,
+} satisfies GameplayBossOpponent
 
 const SPORT_ICONS: Record<SportId, string> = {
   tennis: '🎾',
@@ -126,18 +142,20 @@ export function unavailableGameplaySummary(): GameplaySummary {
       matchCount: 0,
     })),
     boss: {
+      eventId: '',
       venueId: '',
       venueName: '다음 보스 준비 중',
-      name: '주간 보스 휴식 중',
-      icon: '👾',
-      maxHp: 0,
-      remainingHp: 0,
-      startingDamage: 0,
-      totalDamage: 0,
-      myContribution: 0,
+      name: '배드민턴 보스 휴식 중',
+      icon: '🏸',
+      sport: 'badminton',
+      opponent: { ...DEMO_BOSS },
+      challengeId: null,
+      challengeStatus: 'none',
+      canChallenge: false,
+      titleUnlocked: false,
+      rewardTitle: '보스의 천적',
       defeated: false,
       endsLabel: '다음 이벤트를 기다려 주세요',
-      throne: { nickname: '왕좌 집계 전', avatar: '👑', contribution: 0, isMe: false },
     },
     season: {
       id: '',
@@ -192,17 +210,7 @@ export function localGameplaySummary(history: MatchRecord[], me: Player): Gamepl
     }
   })
   const discovered = venues.filter((venue) => venue.discovered).length
-  const bossVisits = records.filter((record) => record.venueId === BOSS_VENUE_ID).length
-  const totalDamage = Math.min(BOSS_MAX_HP, BOSS_STARTING_DAMAGE + bossVisits)
-  const meOnThrone = bossVisits > NATE_RUSH.contribution
-  const throne: GameplayThroneHolder = meOnThrone
-    ? {
-        nickname: me.nickname || '플레이어',
-        avatar: me.avatar || '🦖',
-        contribution: bossVisits,
-        isMe: true,
-      }
-    : { ...NATE_RUSH }
+  const bossVictories = me.bossVictories ?? 0
 
   const quests = [
     quest('first_match', records.length, 1, {
@@ -217,9 +225,9 @@ export function localGameplaySummary(history: MatchRecord[], me: Player): Gamepl
       icon: '📍',
       rewardTitle: '코트 유목민',
     }),
-    quest('boss_raider', bossVisits, 1, {
-      name: '왕좌를 흔든 한 방',
-      description: '주간 체육관 보스전에 유효 경기로 기여하세요.',
+    quest('boss_raider', bossVictories, 1, {
+      name: '셔틀콕 가디언 격파',
+      description: '배드민턴 보스에게 직접 도전해 승리하세요.',
       icon: '👾',
       rewardTitle: '보스의 천적',
     }),
@@ -235,18 +243,20 @@ export function localGameplaySummary(history: MatchRecord[], me: Player): Gamepl
     },
     venues,
     boss: {
+      eventId: 'demo-badminton-boss-v1',
       venueId: BOSS_VENUE_ID,
       venueName: VENUES.find((venue) => venue.id === BOSS_VENUE_ID)?.name ?? '대치체육센터',
-      name: '주간 코트 가디언',
+      name: '배드민턴 주간 보스',
       icon: '👾',
-      maxHp: BOSS_MAX_HP,
-      remainingHp: BOSS_MAX_HP - totalDamage,
-      startingDamage: BOSS_STARTING_DAMAGE,
-      totalDamage,
-      myContribution: bossVisits,
-      defeated: totalDamage >= BOSS_MAX_HP,
+      sport: 'badminton',
+      opponent: { ...DEMO_BOSS },
+      challengeId: null,
+      challengeStatus: bossVictories > 0 ? 'won' : 'none',
+      canChallenge: bossVictories === 0,
+      titleUnlocked: bossVictories > 0,
+      rewardTitle: '보스의 천적',
+      defeated: bossVictories > 0,
       endsLabel: '일요일 23:59 종료',
-      throne,
     },
     season: {
       id: 'gangnam-expedition-1',
@@ -299,9 +309,6 @@ export function localGameplayOutcome(
     newVenue: Boolean(afterVenue && !beforeVenue?.discovered),
     discovered: after.region.discovered,
     totalVenues: after.region.total,
-    bossDamage: Math.max(0, before.boss.remainingHp - after.boss.remainingHp),
-    bossRemainingHp: after.boss.remainingHp,
-    bossMaxHp: after.boss.maxHp,
     seasonCompleted: after.season.completed,
     seasonTotal: after.season.total,
     unlockedQuests: after.season.quests.filter((afterQuest) => (

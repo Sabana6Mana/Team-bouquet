@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import VenueMap, { type MapMarker } from '../components/VenueMap'
 import VenueSheet from '../components/VenueSheet'
 import RankTicker from '../components/RankTicker'
+import PlayerAvatar from '../components/PlayerAvatar'
 import { MapProgressSummary } from '../components/gameplay/GameplayWidgets'
 import { activeMatchPath } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
@@ -83,8 +84,9 @@ export default function MapScreen() {
         tierColor: top ? tierOf(top.elo[shown]).color : '#8296B4',
         elo: top?.elo[shown] ?? 1200,
         discovered: discovered.has(venue.id),
-        boss: gameplay.boss.venueId === venue.id,
-        throne: gameplay.boss.venueId === venue.id && gameplay.boss.throne.contribution > 0,
+        // 보스전은 배드민턴 전용이다. 전체 지도에서는 위치를 안내하되,
+        // 다른 종목 필터에서는 일반 체육관으로 표시한다.
+        boss: (isAll || sport === 'badminton') && gameplay.boss.venueId === venue.id,
         // 필터와 무관한 전체 목록 기준 번호. 3D 건물을 고르게 나눠 준다.
         seat: VENUES.indexOf(venue),
       }
@@ -148,6 +150,7 @@ export default function MapScreen() {
       <VenueMap
         center={HOME}
         me={mapPosition}
+        playerAvatarUrl={me.avatarUrl}
         markers={markers}
         activeId={activeId}
         onMarkerClick={selectVenue}
@@ -161,7 +164,7 @@ export default function MapScreen() {
           <div className="map-summary-card">
             <button className="player-summary" onClick={() => nav('/profile')} aria-label="내 프로필 열기">
               <span className="player-summary__avatar" aria-hidden="true">
-                <img src="/map/player-dino.webp" alt="" />
+                <PlayerAvatar player={me} />
               </span>
               <span className="player-summary__identity">
                 <strong>{me.nickname}</strong>

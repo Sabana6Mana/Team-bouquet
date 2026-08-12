@@ -42,8 +42,6 @@ const BEAM_GLOW_RADIUS = 0.2
  */
 const RIPPLE_RADIUS = 1.5
 
-/** 왕관(구역 1위) 거점의 금빛. */
-const CROWN_TONE = '#f0bd33'
 /** 최근 경기가 많은 인기 거점의 불빛. */
 const HOT_TONE = '#ff7a2f'
 /** 주간 공동 목표가 진행 중인 보스 거점의 보랏빛. */
@@ -65,27 +63,22 @@ export interface VenueModelPlacement {
   hot?: boolean
   /** 내 지역 도감에 등록된 거점인지. */
   discovered?: boolean
-  /** 이번 주 공동 보스 거점. */
+  /** 배드민턴 직접 대결 보스 거점. */
   boss?: boolean
-  /** 주간 기여도 왕좌가 표시되는 거점. */
-  throne?: boolean
 }
 
 /** 거점 상태에 따른 빛의 색·속도·세기. 지도가 곧 정보가 되도록 묶는다. */
 function beamTone(place: VenueModelPlacement) {
-  const color = place.throne
-    ? CROWN_TONE
-    : place.boss
-      ? BOSS_TONE
-      : place.discovered === false
-        ? UNDISCOVERED_TONE
-        : place.hot ? HOT_TONE : place.color
-  // 보스는 빠르게 요동치고, 왕좌는 느긋하고 묵직하게 흐른다.
-  const speed = place.boss ? 2.25 : place.hot ? 1.9 : place.throne ? 0.85 : 1.2
+  const color = place.boss
+    ? BOSS_TONE
+    : place.discovered === false
+      ? UNDISCOVERED_TONE
+      : place.hot ? HOT_TONE : place.color
+  // 보스는 일반 인기 거점보다 빠르고 강하게 요동친다.
+  const speed = place.boss ? 2.25 : place.hot ? 1.9 : 1.2
   const strength = (place.selected ? 1.3 : 0.82)
     * (place.hot ? 1.25 : 1)
     * (place.boss ? 1.35 : 1)
-    * (place.throne ? 1.15 : 1)
     * (place.discovered === false ? 0.48 : 1)
   return { color, speed, strength }
 }

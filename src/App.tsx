@@ -21,6 +21,7 @@ import PaymentScreen from './screens/PaymentScreen'
 import ResultScreen from './screens/ResultScreen'
 import AchievementsScreen from './screens/AchievementsScreen'
 import CollectionScreen from './screens/CollectionScreen'
+import BossChallengeScreen from './screens/BossChallengeScreen'
 
 function TabLayout() {
   const unread = useApp((s) => s.notifications.filter((n) => !n.read).length)
@@ -104,6 +105,7 @@ export default function App() {
           <Route path="/profile" element={<ProfileScreen />} />
           <Route path="/achievements" element={<AchievementsScreen />} />
           <Route path="/collection" element={<CollectionScreen />} />
+          <Route path="/boss" element={<BossChallengeScreen />} />
 
           <Route path="/queue/new" element={<MatchSetup />} />
           <Route path="/queue" element={<QueueScreen />} />

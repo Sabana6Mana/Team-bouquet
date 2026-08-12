@@ -64,13 +64,12 @@ function esc(s: string) {
 /** 네이버 오버레이에 넣을 마커 HTML. 내장 맵 마커와 같은 CSS를 공유한다. */
 function markerHtml(m: MapMarker, active: boolean): string {
   return (
-    `<div class="mk nmarker${active ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}${m.throne ? ' is-throne' : ''}" style="color:${m.color};--tier:${m.tierColor}">` +
+    `<div class="mk nmarker${active ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}" style="color:${m.color};--tier:${m.tierColor}" aria-label="${esc(m.fullLabel)}${m.boss ? ', 배드민턴 보스 거점' : ''}">` +
     '<div class="marker-beam"></div>' +
     (active ? '<div class="marker-halo"></div>' : '') +
-    `<div class="marker-pin">${m.discovered ? m.emoji : '?'}` +
-    (m.hot ? '<span class="marker-badge">🔥</span>' : '') +
-    (m.boss ? '<span class="marker-game-badge">👾</span>' : '') +
-    (m.throne ? '<span class="marker-throne">♛</span>' : '') +
+    `<div class="marker-pin">${m.emoji || '🏟️'}` +
+    (m.hot && !m.boss ? '<span class="marker-badge">🔥</span>' : '') +
+    (m.boss ? '<span class="marker-game-badge">🏸 BOSS</span>' : '') +
     '</div>' +
     `<div class="marker-tip">${esc(m.label)}</div>` +
     '</div>'
@@ -104,7 +103,7 @@ function getOrCreateMap(el: HTMLElement, center: { lat: number; lng: number }): 
 
 /* ─────────────────────── 컴포넌트 ─────────────────────── */
 
-export default function VenueMap({ center, me, markers, activeId, onMarkerClick, focus }: Props) {
+export default function VenueMap({ center, me, playerAvatarUrl, markers, activeId, onMarkerClick, focus }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   /** 네이버 지도 전용 컨테이너 — React는 이 안에 절대 렌더링하지 않는다. */
   const naverHostRef = useRef<HTMLDivElement>(null)
@@ -202,13 +201,13 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
       alive.add(m.id)
       const active = m.id === activeId
       // setIcon은 DOM을 새로 만들어 애니메이션을 되감으므로 실제 변화가 있을 때만 호출한다.
-      const sig = `${m.emoji}|${m.color}|${m.tierColor}|${m.hot}|${m.label}|${active}`
+      const sig = `${m.emoji}|${m.color}|${m.tierColor}|${m.hot}|${m.discovered}|${m.boss}|${m.label}|${active}`
       const entry = store[m.id]
 
       if (entry) {
         if (entry.sig !== sig) {
           entry.marker.setIcon({ content: markerHtml(m, active), anchor: new nv.maps.Point(ANCHOR.x, ANCHOR.y) })
-          entry.marker.setZIndex(active ? 300 : 100)
+          entry.marker.setZIndex(active ? 300 : m.boss ? 200 : 100)
           entry.sig = sig
         }
         return
@@ -218,7 +217,7 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
         map,
         position: new nv.maps.LatLng(m.lat, m.lng),
         icon: { content: markerHtml(m, active), anchor: new nv.maps.Point(ANCHOR.x, ANCHOR.y) },
-        zIndex: active ? 300 : 100,
+        zIndex: active ? 300 : m.boss ? 200 : 100,
       })
       // 콜백이 매 렌더마다 새로 만들어지므로 ref로 최신 것을 호출한다.
       nv.maps.Event.addListener(marker, 'click', () => clickRef.current(m.id))
@@ -243,17 +242,23 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
     if (!nv?.maps) return
 
     const pos = new nv.maps.LatLng(me.lat, me.lng)
+    const source = esc(playerAvatarUrl || '/map/player-dino.webp')
+    const icon = {
+      content: `<div class="nme-character"><span></span><img src="${source}" alt=""></div>`,
+      anchor: new nv.maps.Point(34, 58),
+    }
     if (meOverlayRef.current) {
       meOverlayRef.current.setPosition(pos)
+      meOverlayRef.current.setIcon(icon)
       return
     }
     meOverlayRef.current = new nv.maps.Marker({
       map,
       position: pos,
       zIndex: 200,
-      icon: { content: '<div class="nme"></div>', anchor: new nv.maps.Point(9, 9) },
+      icon,
     })
-  }, [useNaver, me.lat, me.lng])
+  }, [useNaver, me.lat, me.lng, playerAvatarUrl])
 
   /* 체육관을 고르면 팝업이 오른쪽을 덮으므로 마커를 왼쪽 28% 지점으로 옮긴다. */
   useEffect(() => {
@@ -360,23 +365,23 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
         return (
           <div
             key={m.id}
-            className={`mk marker${on ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}${m.throne ? ' is-throne' : ''}`}
+            className={`mk marker${on ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}`}
             style={{
               left: p.x, top: p.y, color: m.color,
               ['--tier' as string]: m.tierColor,
               animationDelay: `${i * 45}ms`,
-              zIndex: on ? 30 : 10,
+              zIndex: on ? 30 : m.boss ? 20 : 10,
             }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onMarkerClick(m.id)}
+            aria-label={`${m.fullLabel}${m.boss ? ', 배드민턴 보스 거점' : ''}`}
           >
             <div className="marker-beam" />
             {on && <div className="marker-halo" />}
             <div className="marker-pin" style={{ animationDelay: `${i * 260}ms` }}>
-              {m.discovered ? m.emoji : '?'}
-              {m.hot && <span className="marker-badge">🔥</span>}
-              {m.boss && <span className="marker-game-badge">👾</span>}
-              {m.throne && <span className="marker-throne">♛</span>}
+              {m.emoji || '🏟️'}
+              {m.hot && !m.boss && <span className="marker-badge">🔥</span>}
+              {m.boss && <span className="marker-game-badge">🏸 BOSS</span>}
             </div>
             <div className="marker-tip">{m.label}</div>
           </div>
@@ -384,7 +389,12 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
       })}
 
       {/* 내 위치 — 내장 맵에서만. 네이버에서는 오버레이로 올린다. */}
-      {!useNaver && mePos && <div className="me-dot" style={{ left: mePos.x, top: mePos.y, zIndex: 20 }} />}
+      {!useNaver && mePos && (
+        <div className="me-character" style={{ left: mePos.x, top: mePos.y, zIndex: 20 }}>
+          <span />
+          <img src={playerAvatarUrl || '/map/player-dino.webp'} alt="" />
+        </div>
+      )}
 
       {/* 현재 위치로 — 빠른 매칭 버튼 바로 위에 붙인다 */}
       <button

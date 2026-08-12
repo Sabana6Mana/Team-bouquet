@@ -11,7 +11,8 @@ import {
 import { encodeSlot } from '../lib/game'
 import { forcedDemo } from '../lib/forcedDemo'
 import { titleForAchievement } from '../data/achievements'
-import type { GameplayOutcome, GameplaySummary } from '../data/gameplay'
+import type { BossChallengeResult, GameplayOutcome, GameplaySummary } from '../data/gameplay'
+import { isAvatarImageUrl } from '../data/characters'
 import { useApp } from '../store/useApp'
 import type {
   AchievementProgress, Account, AppNotification, HonorCounts, Match, MatchPhase, MatchRecord, Player, SportId,
@@ -43,7 +44,9 @@ interface BackendRuntime {
   verifyEmailOtp: (email: string, token: string) => Promise<void>
   signOut: () => Promise<void>
   checkNickname: (nickname: string) => Promise<boolean>
-  saveProfile: (nickname: string, interests: SportId[]) => Promise<void>
+  saveProfile: (nickname: string, interests: SportId[], avatarUrl?: string | null) => Promise<void>
+  startBossChallenge: (eventId: string) => Promise<BossChallengeResult>
+  resolveBossChallenge: (challengeId: string) => Promise<BossChallengeResult>
   equipTitle: (achievementCode: string | null) => Promise<void>
   refresh: () => Promise<void>
 }
@@ -90,7 +93,7 @@ function playerFromProfile(
   const interests = value.profile.interests.filter((sport): sport is SportId =>
     SPORTS.includes(sport as SportId),
   )
-  const avatarUrl = value.profile.avatar_url && /^https?:\/\//i.test(value.profile.avatar_url)
+  const avatarUrl = isAvatarImageUrl(value.profile.avatar_url)
     ? value.profile.avatar_url
     : null
   const titleCode = value.profile.equipped_title_code
@@ -167,7 +170,7 @@ function matchFromBackend(
       if (SPORTS.includes(rating.sport as SportId)) elo[rating.sport as SportId] = rating.rating
     }
     const rawAvatar = member.profile?.avatar_url
-    const avatarUrl = rawAvatar && /^https?:\/\//i.test(rawAvatar) ? rawAvatar : null
+    const avatarUrl = isAvatarImageUrl(rawAvatar) ? rawAvatar : null
     const titleCode = member.profile?.equipped_title_code ?? null
     return {
       id: member.user_id,
@@ -669,9 +672,31 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       useApp.getState().reset()
     },
     checkNickname: (nickname) => backendApi.profile.isNicknameAvailable(nickname),
-    saveProfile: async (nickname, interests) => {
-      await backendApi.profile.upsert({ nickname, interests })
+    saveProfile: async (nickname, interests, avatarUrl) => {
+      await backendApi.profile.upsert({ nickname, interests, avatarUrl })
       await refresh()
+    },
+    startBossChallenge: async (eventId) => {
+      setError(null)
+      try {
+        const result = await backendApi.gameplay.startBossChallenge(eventId)
+        await refresh()
+        return result
+      } catch (caught) {
+        setError(messageOf(caught))
+        throw caught
+      }
+    },
+    resolveBossChallenge: async (challengeId) => {
+      setError(null)
+      try {
+        const result = await backendApi.gameplay.resolveBossChallenge(challengeId)
+        await refresh()
+        return result
+      } catch (caught) {
+        setError(messageOf(caught))
+        throw caught
+      }
     },
     equipTitle: async (achievementCode) => {
       setError(null)
