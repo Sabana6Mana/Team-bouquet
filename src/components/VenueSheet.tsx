@@ -8,6 +8,7 @@ import {
 import { leaderboardOf, npcById, recordsOf } from '../data/seed'
 import { useApp } from '../store/useApp'
 import { activeMatchPath } from './ui'
+import Avatar from './Avatar'
 
 /** 지도 위에 뜨는 체육관 상세 팝업. 마커는 왼쪽, 팝업은 오른쪽. */
 export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: () => void }) {
@@ -92,7 +93,7 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
                   <div className="lb-row" key={p.id} style={{ padding: '7px 10px' }}>
                     <span className={`rank${i < 3 ? ` g${i + 1}` : ''}`}>{i + 1}</span>
                     <div className="row grow" style={{ gap: 6, minWidth: 0 }}>
-                      <span style={{ fontSize: 13 }}>{p.avatar}</span>
+                      <span style={{ fontSize: 13 }}><Avatar player={p} kind="face" /></span>
                       <span
                         style={{
                           fontSize: 11.5, fontWeight: 600,
@@ -123,7 +124,9 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
                         {SPORTS[r.sport].emoji} {r.mode} · {r.playedAt}
                       </span>
                     </div>
-                    <span className="mono" style={{ fontSize: 12, fontWeight: 800 }}>{r.score}</span>
+                    <span className="mono" style={{ fontSize: 12, fontWeight: 800, color: '#7fe0a0' }}>
+                      +{r.eloDelta}
+                    </span>
                   </div>
                 )
               })}

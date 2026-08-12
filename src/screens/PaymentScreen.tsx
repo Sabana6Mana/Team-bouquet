@@ -5,6 +5,7 @@ import { VENUES } from '../data/seed'
 import { MODE_LABEL, SPORTS, slotLabel, won } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
+import Avatar from '../components/Avatar'
 
 const METHODS = [
   { id: 'kakao', label: '카카오페이', emoji: '💛' },
@@ -102,7 +103,7 @@ export default function PaymentScreen() {
                       background: done ? 'rgba(31, 138, 99,0.07)' : 'var(--surface)',
                     }}
                   >
-                    <div className="avatar">{p.avatar}</div>
+                    <div className="avatar"><Avatar player={p} kind="face" /></div>
                     <div className="stack grow" style={{ gap: 2 }}>
                       <div className="row" style={{ gap: 6 }}>
                         <strong style={{ fontSize: 14 }}>{p.nickname}</strong>

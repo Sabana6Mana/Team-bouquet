@@ -5,6 +5,7 @@ import { VENUES } from '../data/seed'
 import { MODE_LABEL, SPORTS, slotLabel, recommendTeams, teamAvg, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
+import Avatar from '../components/Avatar'
 
 const SIDE = {
   a: { key: 'a' as const, label: 'TEAM BLUE', emoji: '🔵', color: '#2F6FD0' },
@@ -131,7 +132,7 @@ export default function TeamScreen() {
                   background: match.teamReady[id] ? 'rgba(31, 138, 99,0.07)' : 'var(--surface)',
                 }}
               >
-                <span className="avatar sm">{p.avatar}</span>
+                <span className="avatar sm"><Avatar player={p} kind="face" /></span>
                 <div className="stack grow" style={{ gap: 2, alignItems: 'flex-start', minWidth: 0 }}>
                   <span
                     style={{

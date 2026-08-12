@@ -4,6 +4,7 @@ import { CLANS, VENUES } from '../data/seed'
 import { HONOR_GRADES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
+import Avatar from '../components/Avatar'
 
 export default function ProfileScreen() {
   const nav = useNavigate()
@@ -32,7 +33,7 @@ export default function ProfileScreen() {
           style={{ gap: 14, borderColor: `${bestTier.color}44`, background: `linear-gradient(160deg, ${bestTier.color}16, transparent)` }}
         >
           <div className="row" style={{ gap: 14 }}>
-            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66` }}>{me.avatar}</div>
+            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66` }}><Avatar player={me} kind="face" /></div>
             <div className="stack grow" style={{ gap: 6 }}>
               <strong style={{ fontSize: 20 }}>{me.nickname}</strong>
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
@@ -137,8 +138,7 @@ export default function ProfileScreen() {
                     <span className="small" style={{ fontSize: 11 }}>{v?.name} · {r.playedAt}</span>
                   </div>
                   <div className="stack" style={{ alignItems: 'flex-end', gap: 2 }}>
-                    <span className="mono" style={{ fontSize: 14, fontWeight: 800 }}>{r.score}</span>
-                    <span className="mono small" style={{ fontSize: 10, color: r.eloDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                    <span className="mono" style={{ fontSize: 15, fontWeight: 800, color: r.eloDelta >= 0 ? 'var(--green)' : 'var(--red)' }}>
                       {r.eloDelta >= 0 ? '+' : ''}{r.eloDelta}
                     </span>
                   </div>

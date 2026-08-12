@@ -143,6 +143,7 @@ export const useApp = create<AppState>()(
           ...emptyMe(),
           nickname: a.nickname,
           avatar: '🦖',
+          avatarKey: 'dino',
         }
         set({ account: { ...a, interests: [] }, me })
       },
@@ -625,10 +626,6 @@ export const useApp = create<AppState>()(
           iWon,
         )
         const me = get().me
-        const scoreTable: Record<SportId, string> = {
-          tennis: '6-4', badminton: '21-18', tabletennis: '11-8', basketball: '21-17',
-        }
-
         set({
           me: {
             ...me,
@@ -636,7 +633,7 @@ export const useApp = create<AppState>()(
             wins: me.wins + (iWon ? 1 : 0),
             losses: me.losses + (iWon ? 0 : 1),
           },
-          match: { ...m, result: { winner, score: scoreTable[sport], delta }, phase: 'reporting' },
+          match: { ...m, result: { winner, delta }, phase: 'reporting' },
         })
         get().notify('결과 확정!', iWon ? '승리가 기록되었습니다.' : '결과가 기록되었습니다.', '/result')
       },
@@ -669,7 +666,6 @@ export const useApp = create<AppState>()(
           playedAt: '방금 전',
           winners: m.teams[m.result?.winner ?? 'a'],
           losers: m.teams[(m.result?.winner ?? 'a') === 'a' ? 'b' : 'a'],
-          score: m.result?.score ?? '-',
           eloDelta: delta,
         }
         clearTimers()

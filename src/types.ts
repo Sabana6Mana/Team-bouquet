@@ -25,7 +25,13 @@ export interface Venue {
 export interface Player {
   id: string
   nickname: string
+  /** 그림이 없거나 못 불러왔을 때 쓰는 이모지 대체 */
   avatar: string
+  /**
+   * 아바타 그림 이름. `public/avatars/<key>.webp`(전신)과
+   * `<key>-face.webp`(얼굴)를 찾는다. 파일이 없으면 조용히 이모지로 남는다.
+   */
+  avatarKey?: string
   elo: Record<SportId, number>
   /** 받은 칭찬 스티커 누적 수 */
   stickers: number
@@ -45,7 +51,6 @@ export interface MatchRecord {
   playedAt: string
   winners: string[]
   losers: string[]
-  score: string
   eloDelta: number
 }
 
@@ -97,7 +102,7 @@ export interface Match {
   /** 경기 후 승패 투표. playerId -> 이겼다고 본 팀 */
   resultVotes: Record<string, 'a' | 'b'>
   /** 전원이 같은 팀에 투표했을 때만 채워진다. delta는 내 ELO 변동값. */
-  result: { winner: 'a' | 'b'; score: string; delta: number } | null
+  result: { winner: 'a' | 'b'; delta: number } | null
   /** 칭찬 스티커를 준 상대 playerId 목록 */
   stickersGiven: string[]
   createdAt: number

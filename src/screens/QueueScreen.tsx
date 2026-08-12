@@ -4,6 +4,7 @@ import { useApp } from '../store/useApp'
 import { VENUES } from '../data/seed'
 import { MODE_LABEL, QUICK_RADIUS_M, SPORTS, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
+import Avatar from '../components/Avatar'
 
 export default function QueueScreen() {
   const match = useApp((s) => s.match)
@@ -80,7 +81,7 @@ export default function QueueScreen() {
               const t = tierOf(p.elo[match.sport])
               return (
                 <div key={p.id} className="card row fade-in" style={{ gap: 12, borderColor: p.isMe ? 'var(--cyan)' : 'var(--line)' }}>
-                  <div className="avatar">{p.avatar}</div>
+                  <div className="avatar"><Avatar player={p} kind="face" /></div>
                   <div className="stack grow" style={{ gap: 3 }}>
                     <div className="row" style={{ gap: 6 }}>
                       <strong style={{ fontSize: 14 }}>{p.nickname}</strong>

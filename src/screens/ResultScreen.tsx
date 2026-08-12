@@ -8,6 +8,8 @@ import {
 } from '../lib/game'
 import { TopBar } from '../components/ui'
 import EloBar from '../components/EloBar'
+import AwardCeremony, { ceremonyPending } from '../components/AwardCeremony'
+import Avatar from '../components/Avatar'
 
 export default function ResultScreen() {
   const match = useApp((s) => s.match)
@@ -22,10 +24,22 @@ export default function ResultScreen() {
   const [reportFor, setReportFor] = useState<string | null>(null)
   /** ELO 연출이 끝나야 세부 내용을 펼친다 */
   const [revealed, setRevealed] = useState(false)
+  /**
+   * 시상식을 아직 보여 주는 중인가.
+   * 결과가 확정되는 순간을 잡아야 하므로 매치 id 로 한 번만 켠다.
+   */
+  const [ceremony, setCeremony] = useState(false)
 
   useEffect(() => {
     if (!match) nav('/', { replace: true })
   }, [match])
+
+  // 승패가 확정되는 순간 시상식을 켠다. 팀이 없는 단식도 teams 로 갈리므로
+  // 결과만 있으면 세울 수 있다.
+  useEffect(() => {
+    if (!match?.result || !match.id) return
+    if (ceremonyPending(match.id)) setCeremony(true)
+  }, [match?.id, match?.result?.winner])
 
   if (!match) return null
 
@@ -85,7 +99,7 @@ export default function ResultScreen() {
                 return (
                   <div key={p.id} className="stack" style={{ gap: 8 }}>
                     <div className="row" style={{ gap: 10 }}>
-                      <span className="avatar sm">{p.avatar}</span>
+                      <span className="avatar sm"><Avatar player={p} kind="face" /></span>
                       <span className="grow" style={{ fontSize: 13 }}>
                         {p.nickname}{p.isMe && ' (나)'}
                       </span>
@@ -203,7 +217,7 @@ export default function ResultScreen() {
                       const t = tierOf(p.elo[match.sport])
                       return (
                         <div key={id} className="row" style={{ gap: 10 }}>
-                          <span className="avatar sm">{p.avatar}</span>
+                          <span className="avatar sm"><Avatar player={p} kind="face" /></span>
                           <span className="grow" style={{ fontSize: 13.5, fontWeight: 600 }}>{p.nickname}</span>
                           <span className="mono small" style={{ color: t.color, fontWeight: 700 }}>
                             {p.elo[match.sport]}
@@ -229,7 +243,12 @@ export default function ResultScreen() {
     )
   }
 
-  /* ── 2단계: ELO 변동 + 칭찬 스티커 ── */
+  /* ── 2단계: 시상식 ── */
+  if (ceremony) {
+    return <AwardCeremony match={match} meId={me.id} onDone={() => setCeremony(false)} />
+  }
+
+  /* ── 3단계: ELO 변동 + 칭찬 스티커 ── */
   return (
     <div className="overlay">
       <TopBar title="경기 종료" />
@@ -263,7 +282,9 @@ export default function ResultScreen() {
             <h1 className="h1" style={{ color: iWon ? 'var(--gold)' : 'var(--text)' }}>
               {iWon ? 'VICTORY' : 'DEFEAT'}
             </h1>
-            <span className="mono" style={{ fontSize: 22, fontWeight: 800 }}>{match.result!.score}</span>
+            <span className="small" style={{ fontSize: 12.5 }}>
+              {meta.label} {MODE_LABEL[match.mode]} · {venueName}
+            </span>
           </div>
 
           {/* 칭찬 스티커 */}
@@ -291,7 +312,7 @@ export default function ResultScreen() {
                   }}
                 >
                   <div className="row" style={{ gap: 11 }}>
-                    <div className="avatar">{p.avatar}</div>
+                    <div className="avatar"><Avatar player={p} kind="face" /></div>
                     <div className="stack grow" style={{ gap: 3 }}>
                       <strong style={{ fontSize: 14 }}>{p.nickname}</strong>
                       <span className="small" style={{ fontSize: 11, color: h.color }}>

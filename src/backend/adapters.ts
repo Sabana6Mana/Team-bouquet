@@ -232,7 +232,6 @@ export function currentMatchToAppMatch(
     result: winner
       ? {
           winner,
-          score: match.score ?? '-',
           delta: myMember?.rating_delta ?? 0,
         }
       : null,

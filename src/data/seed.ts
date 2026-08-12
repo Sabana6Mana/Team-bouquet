@@ -83,6 +83,15 @@ export const VENUES: Venue[] = [
 
 const AVATARS = ['🦊', '🐻', '🐯', '🦁', '🐼', '🐨', '🦅', '🐺', '🦉', '🐸', '🦈', '🐲']
 
+/**
+ * 아바타 그림 이름. public/avatars/<key>.webp(전신) 과 <key>-face.webp(얼굴)를 찾는다.
+ * 파일이 없으면 위 이모지로 자동으로 되돌아가므로, 그린 것부터 하나씩 넣으면 된다.
+ */
+const AVATAR_KEYS = [
+  'fox', 'bear', 'tiger', 'lion', 'panda', 'koala',
+  'eagle', 'wolf', 'owl', 'frog', 'shark', 'dragon',
+]
+
 function makeElo(base: number): Record<SportId, number> {
   const j = () => base + Math.round((Math.random() - 0.5) * 180)
   return { tennis: j(), badminton: j(), tabletennis: j(), basketball: j() }
@@ -99,6 +108,7 @@ export const NPCS: Player[] = NICKS.map((nickname, i) => ({
   id: `npc-${i}`,
   nickname,
   avatar: AVATARS[i % AVATARS.length],
+  avatarKey: AVATAR_KEYS[i % AVATAR_KEYS.length],
   elo: makeElo(1500 + ((i * 137) % 600) - 200),
   stickers: (i * 7) % 62,
   wins: 12 + ((i * 5) % 40),
@@ -111,13 +121,6 @@ export const NPCS: Player[] = NICKS.map((nickname, i) => ({
 
 export function npcById(id: string): Player | undefined {
   return NPCS.find((n) => n.id === id)
-}
-
-const SCORES: Record<string, string[]> = {
-  tennis: ['6-4', '6-3', '7-5', '6-2'],
-  badminton: ['21-18', '21-15', '21-19', '2-1'],
-  tabletennis: ['11-8', '11-6', '3-1', '11-9'],
-  basketball: ['21-17', '21-14', '21-19'],
 }
 
 /** 체육관마다 최근 경기 수가 다르다. 활발한 곳은 지도에서 🔥로 표시된다. */
@@ -139,7 +142,6 @@ export const RECORDS: MatchRecord[] = VENUES.flatMap((v, vi) =>
       playedAt: `${i + 1}일 전`,
       winners: [a.id],
       losers: [b.id],
-      score: SCORES[sport][i % SCORES[sport].length],
       eloDelta: 12 + ((vi + i) % 14),
     }
   }),

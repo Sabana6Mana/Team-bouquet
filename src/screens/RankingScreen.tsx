@@ -4,6 +4,7 @@ import { NPCS } from '../data/seed'
 import { SPORT_LIST, SPORTS, TIERS, tierOf } from '../lib/game'
 import { Jumbotron } from '../components/ui'
 import type { SportId } from '../types'
+import Avatar from '../components/Avatar'
 
 export default function RankingScreen() {
   const me = useApp((s) => s.me)
@@ -49,7 +50,7 @@ export default function RankingScreen() {
           style={{ gap: 13, borderColor: `${myTier.color}55`, background: `linear-gradient(160deg, ${myTier.color}18, transparent)` }}
         >
           <div className="row" style={{ gap: 13 }}>
-            <div className="avatar lg" style={{ borderColor: `${myTier.color}66` }}>{me.avatar}</div>
+            <div className="avatar lg" style={{ borderColor: `${myTier.color}66` }}><Avatar player={me} kind="face" /></div>
             <div className="stack grow" style={{ gap: 5 }}>
               <strong style={{ fontSize: 17 }}>{me.nickname}</strong>
               <span className="chip" style={{ color: myTier.color, borderColor: `${myTier.color}55`, background: `${myTier.color}16`, alignSelf: 'flex-start' }}>
@@ -110,7 +111,7 @@ export default function RankingScreen() {
               >
                 <span className={`rank${i < 3 ? ` g${i + 1}` : ''}`}>{i + 1}</span>
                 <div className="row grow" style={{ gap: 9, minWidth: 0 }}>
-                  <span style={{ fontSize: 17 }}>{p.avatar}</span>
+                  <span style={{ fontSize: 17 }}><Avatar player={p} kind="face" /></span>
                   <div className="stack" style={{ gap: 2, minWidth: 0 }}>
                     <span
                       style={{

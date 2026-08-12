@@ -205,7 +205,6 @@ function matchFromBackend(
       result: winner
         ? {
             winner,
-            score: snapshot.match.score ?? '-',
             delta: meMember?.rating_delta ?? 0,
           }
         : null,
