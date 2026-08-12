@@ -19,7 +19,8 @@
     "verify:lifecycle": "node scripts/verify-lifecycle-hardening.mjs",
     "verify:acceptance": "node scripts/verify-match-acceptance.mjs",
     "verify:sanctions": "node scripts/verify-sanctions.mjs",
-    "verify:backend": "npm run verify:mvp && npm run verify:achievements && npm run verify:honor && npm run verify:lifecycle && npm run verify:acceptance && npm run verify:sanctions"
+    "verify:gameplay": "node scripts/verify-gameplay-progression.mjs",
+    "verify:backend": "npm run verify:mvp && npm run verify:achievements && npm run verify:honor && npm run verify:lifecycle && npm run verify:acceptance && npm run verify:sanctions && npm run verify:gameplay"
   },
   "dependencies": {
     "@capacitor/android": "7.6.8",
