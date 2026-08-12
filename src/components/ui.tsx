@@ -57,7 +57,19 @@ export function TopBar({ title, onBack, right }: { title: string; onBack?: () =>
   return (
     <div className="topbar">
       {onBack && (
-        <button onClick={onBack} style={{ fontSize: 22, lineHeight: 1, width: 28 }} aria-label="뒤로">
+        <button
+          onClick={onBack}
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            width: 44,
+            height: 44,
+            margin: '-10px -8px',
+            fontSize: 22,
+            lineHeight: 1,
+          }}
+          aria-label="뒤로"
+        >
           ‹
         </button>
       )}
