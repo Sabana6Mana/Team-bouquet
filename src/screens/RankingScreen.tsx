@@ -1,13 +1,23 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { NPCS } from '../data/seed'
+import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SPORT_LIST, SPORTS, TIERS, tierOf } from '../lib/game'
+import { useBackend } from '../context/BackendProvider'
+import { WeeklyThroneCard } from '../components/gameplay/GameplayWidgets'
 import { Jumbotron } from '../components/ui'
 import type { SportId } from '../types'
 
 export default function RankingScreen() {
   const me = useApp((s) => s.me)
+  const history = useApp((s) => s.history)
   const [sport, setSport] = useState<SportId>('badminton')
+  const backend = useBackend()
+  const nav = useNavigate()
+  const gameplay = backend.liveMatch
+    ? backend.gameplay ?? unavailableGameplaySummary()
+    : localGameplaySummary(history, me)
 
   const all = [...NPCS, me].sort((a, b) => b.elo[sport] - a.elo[sport])
   const myRank = all.findIndex((p) => p.id === me.id) + 1
@@ -43,6 +53,11 @@ export default function RankingScreen() {
           })}
         </div>
 
+        <WeeklyThroneCard
+          gameplay={gameplay}
+          onOpenVenue={(venueId) => nav(`/?venue=${venueId}`)}
+        />
+
         {/* 내 순위 카드 */}
         <div
           className="card stack"
@@ -52,6 +67,7 @@ export default function RankingScreen() {
             <div className="avatar lg" style={{ borderColor: `${myTier.color}66` }}>{me.avatar}</div>
             <div className="stack grow" style={{ gap: 5 }}>
               <strong style={{ fontSize: 17 }}>{me.nickname}</strong>
+              {me.title && <span className="profile-title">《{me.title}》</span>}
               <span className="chip" style={{ color: myTier.color, borderColor: `${myTier.color}55`, background: `${myTier.color}16`, alignSelf: 'flex-start' }}>
                 {myTier.name} · {SPORTS[sport].label}
               </span>
@@ -122,6 +138,7 @@ export default function RankingScreen() {
                       {p.nickname}{mine && ' (나)'}
                     </span>
                     <span className="small" style={{ fontSize: 10 }}>{p.wins}승 {p.losses}패</span>
+                    {p.title && <span className="small" style={{ fontSize: 9, color: '#eacb74' }}>《{p.title}》</span>}
                   </div>
                 </div>
                 <div className="stack" style={{ alignItems: 'flex-end', gap: 1 }}>

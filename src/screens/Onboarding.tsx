@@ -15,6 +15,7 @@ export default function Onboarding() {
   const setInterests = useApp((s) => s.setInterests)
   const nav = useNavigate()
   const [saving, setSaving] = useState(false)
+  const [checkingNickname, setCheckingNickname] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [name, setName] = useState('')
@@ -122,7 +123,10 @@ export default function Onboarding() {
             </div>
             <input
               className="field" placeholder="닉네임 (2~12자)" maxLength={12}
-              value={nickname} onChange={(e) => setNickname(e.target.value)}
+              value={nickname} onChange={(e) => {
+                setNickname(e.target.value)
+                setError(null)
+              }}
             />
             <div className="card stack" style={{ gap: 12 }}>
               <span className="label">미리보기</span>
@@ -137,20 +141,35 @@ export default function Onboarding() {
             <div className="grow" />
             <button
               className="btn primary"
-              disabled={nickname.trim().length < 2}
+              disabled={nickname.trim().length < 2 || checkingNickname}
               onClick={() => {
-                signUp({
-                  name: backend.enabled ? '' : name,
-                  birth: backend.enabled ? '' : birth,
-                  carrier: backend.enabled ? '' : carrier,
-                  phone: backend.enabled ? '' : phone,
-                  nickname: nickname.trim(),
-                })
-                setStep(2)
+                void (async () => {
+                  setCheckingNickname(true)
+                  setError(null)
+                  try {
+                    if (backend.enabled && !(await backend.checkNickname(nickname))) {
+                      setError('이미 사용 중인 닉네임입니다. 다른 이름을 골라 주세요.')
+                      return
+                    }
+                    signUp({
+                      name: backend.enabled ? '' : name,
+                      birth: backend.enabled ? '' : birth,
+                      carrier: backend.enabled ? '' : carrier,
+                      phone: backend.enabled ? '' : phone,
+                      nickname: nickname.trim(),
+                    })
+                    setStep(2)
+                  } catch (caught) {
+                    setError(caught instanceof Error ? caught.message : '닉네임 확인에 실패했습니다.')
+                  } finally {
+                    setCheckingNickname(false)
+                  }
+                })()
               }}
             >
-              계정 생성하기
+              {checkingNickname ? '닉네임 확인 중…' : '계정 생성하기'}
             </button>
+            {error && <p className="small" style={{ color: 'var(--red)' }}>{error}</p>}
           </div>
         )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackend } from '../context/BackendProvider'
+import { consumeNativeAuthError } from '../lib/nativeRuntime'
 
 export default function LoginScreen() {
   const backend = useBackend()
@@ -9,7 +10,7 @@ export default function LoginScreen() {
   const [token, setToken] = useState('')
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(() => consumeNativeAuthError())
 
   useEffect(() => {
     if (backend.user) nav('/onboarding', { replace: true })
@@ -47,11 +48,16 @@ export default function LoginScreen() {
           <button
             className="btn"
             style={{ width: '100%', height: 54, background: '#FEE500', color: '#191919', borderColor: '#FEE500' }}
-            disabled={busy}
+            disabled={busy || !backend.kakaoEnabled}
             onClick={() => void run(backend.signInWithKakao)}
           >
-            카카오로 시작하기
+            {backend.kakaoEnabled ? '카카오로 시작하기' : '카카오 로그인 · 설정 필요'}
           </button>
+          {!backend.kakaoEnabled && (
+            <p className="small" style={{ textAlign: 'center', color: 'var(--gold)' }}>
+              REST API 키와 Client Secret 설정 후 카카오 로그인이 활성화됩니다.
+            </p>
+          )}
           <button
             className="btn primary"
             style={{ width: '100%', height: 54 }}

@@ -14,6 +14,7 @@ import type {
   ProfileWithRatings,
   VenueSlot,
 } from './types'
+import { titleForAchievement } from '../data/achievements'
 
 const SPORTS: AppSportId[] = ['tennis', 'badminton', 'tabletennis', 'basketball']
 const MODES: AppMatchMode[] = ['1v1', '2v2', '3v3']
@@ -126,10 +127,23 @@ export function profileToPlayer(
     id: value.profile.id,
     nickname: value.profile.nickname,
     avatar: profileAvatar(value.profile.avatar_url),
+    avatarUrl: value.profile.avatar_url && /^https?:\/\//i.test(value.profile.avatar_url)
+      ? value.profile.avatar_url
+      : null,
     elo,
-    stickers: 0,
+    stickers: value.profile.honor_total,
+    honorCounts: {
+      manner: value.profile.honor_manner,
+      skill: value.profile.honor_skill,
+      punctual: value.profile.honor_punctual,
+      fun: value.profile.honor_fun,
+    },
     wins: value.ratings.reduce((total, rating) => total + rating.wins, 0),
     losses: value.ratings.reduce((total, rating) => total + rating.losses, 0),
+    streak: Math.max(0, ...value.ratings.map((rating) => rating.current_streak)),
+    bestStreak: Math.max(0, ...value.ratings.map((rating) => rating.best_streak)),
+    titleCode: value.profile.equipped_title_code,
+    title: titleForAchievement(value.profile.equipped_title_code),
     isMe: currentUserId === value.profile.id,
   }
 }
@@ -148,6 +162,7 @@ function matchPlayerToApp(player: MatchPlayer, currentUserId: string): AppPlayer
     avatar: '🙂',
     elo,
     stickers: 0,
+    honorCounts: { manner: 0, skill: 0, punctual: 0, fun: 0 },
     wins: 0,
     losses: 0,
     isMe: currentUserId === player.user_id,
@@ -166,7 +181,7 @@ function messageToApp(message: CurrentMatch['messages'][number]): AppChatMessage
 
 /**
  * Hydrates the existing synchronous UI model from one Supabase match snapshot.
- * Reports and stickers remain client-only in the current MVP and start empty.
+ * Reports remain local UI state; post-match honors are hydrated from the server.
  */
 export function currentMatchToAppMatch(
   current: CurrentMatch,
@@ -187,9 +202,11 @@ export function currentMatchToAppMatch(
   }
 
   const resultVotes: Record<string, 'a' | 'b'> = {}
+  const resultVoteScores: Record<string, string> = {}
   for (const vote of current.resultVotes) {
     if (vote.winner_team === 'a' || vote.winner_team === 'b') {
       resultVotes[vote.user_id] = vote.winner_team
+      resultVoteScores[vote.user_id] = vote.score ?? ''
     }
   }
 
@@ -219,6 +236,12 @@ export function currentMatchToAppMatch(
     hostId: match.host_id,
     players: current.players.map((player) => matchPlayerToApp(player, currentUserId)),
     phase: asPhase(match.phase),
+    acceptanceDeadline: match.acceptance_deadline
+      ? new Date(match.acceptance_deadline).getTime()
+      : undefined,
+    accepted: Object.fromEntries(
+      current.players.map((member) => [member.user_id, Boolean(member.accepted_at)]),
+    ),
     votes,
     confirmedSlot: match.confirmed_slot_id
       ? encodedById[match.confirmed_slot_id] ?? null
@@ -229,6 +252,7 @@ export function currentMatchToAppMatch(
     teamReady,
     reports: {},
     resultVotes,
+    resultVoteScores,
     result: winner
       ? {
           winner,
@@ -236,7 +260,10 @@ export function currentMatchToAppMatch(
           delta: myMember?.rating_delta ?? 0,
         }
       : null,
-    stickersGiven: [],
+    honorGiven: (() => {
+      const honor = current.honors.find((item) => item.giver_id === currentUserId)
+      return honor ? { playerId: honor.receiver_id, type: honor.honor_type } : null
+    })(),
     createdAt: asTimestamp(match.created_at),
   }
 }

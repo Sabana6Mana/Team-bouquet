@@ -1,9 +1,17 @@
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { CLANS, VENUES } from '../data/seed'
-import { HONOR_GRADES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
+import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
+import { HONOR_GRADES, HONOR_TYPES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
+
+const HONOR_SHORT_LABEL = {
+  manner: '매너',
+  skill: '실력',
+  punctual: '시간 약속',
+  fun: '분위기',
+} as const
 
 export default function ProfileScreen() {
   const nav = useNavigate()
@@ -20,6 +28,9 @@ export default function ProfileScreen() {
   const bestTier = tierOf(me.elo[best.id])
   const total = me.wins + me.losses
   const winRate = total ? Math.round((me.wins / total) * 100) : 0
+  const gameplay = backend.liveMatch
+    ? backend.gameplay ?? unavailableGameplaySummary()
+    : localGameplaySummary(history, me)
 
   return (
     <div className="overlay">
@@ -32,9 +43,12 @@ export default function ProfileScreen() {
           style={{ gap: 14, borderColor: `${bestTier.color}44`, background: `linear-gradient(160deg, ${bestTier.color}16, transparent)` }}
         >
           <div className="row" style={{ gap: 14 }}>
-            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66` }}>{me.avatar}</div>
+            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66`, overflow: 'hidden' }}>
+              {me.avatarUrl ? <img src={me.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : me.avatar}
+            </div>
             <div className="stack grow" style={{ gap: 6 }}>
               <strong style={{ fontSize: 20 }}>{me.nickname}</strong>
+              {me.title && <span className="profile-title">《{me.title}》</span>}
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                 <span className="chip" style={{ color: bestTier.color, borderColor: `${bestTier.color}55`, background: `${bestTier.color}16` }}>
                   {bestTier.name}
@@ -48,7 +62,7 @@ export default function ProfileScreen() {
             {[
               { label: '전적', value: `${me.wins}승 ${me.losses}패` },
               { label: '승률', value: `${winRate}%` },
-              { label: '스티커', value: `${me.stickers}개` },
+              { label: '받은 명예', value: `${me.stickers}개` },
             ].map((s, i) => (
               <div key={s.label} className="stack center grow" style={{ gap: 4, borderLeft: i ? '1px solid var(--line)' : 'none' }}>
                 <span className="mono" style={{ fontSize: 16, fontWeight: 800 }}>{s.value}</span>
@@ -56,6 +70,30 @@ export default function ProfileScreen() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+          <button
+            className="card stack"
+            style={{ gap: 7, minHeight: 104, padding: 14, textAlign: 'left', borderColor: 'rgba(47,125,70,0.28)' }}
+            onClick={() => nav('/collection')}
+          >
+            <span aria-hidden="true" style={{ fontSize: 24 }}>🗺️</span>
+            <strong style={{ fontSize: 13 }}>지역 도감</strong>
+            <span className="small">강남 {gameplay.region.discovered}/{gameplay.region.total} 발견</span>
+          </button>
+          <button
+            className="card stack"
+            style={{ gap: 7, minHeight: 104, padding: 14, textAlign: 'left', borderColor: 'rgba(184,134,11,0.30)' }}
+            onClick={() => nav('/achievements')}
+          >
+            <span aria-hidden="true" style={{ fontSize: 24 }}>🏆</span>
+            <strong style={{ fontSize: 13 }}>시즌 · 칭호</strong>
+            <span className="small">
+              {gameplay.season.completed}/{gameplay.season.total} 완료
+              {me.title ? ` · 《${me.title}》` : ''}
+            </span>
+          </button>
         </div>
 
         {/* 명예 등급 */}
@@ -81,6 +119,22 @@ export default function ProfileScreen() {
                 <span style={{ fontSize: 9, textAlign: 'center', color: 'var(--muted)', lineHeight: 1.3 }}>
                   {g.name.split(' ')[0]}
                 </span>
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+              paddingTop: 10, borderTop: '1px solid var(--line)',
+            }}
+          >
+            {HONOR_TYPES.map((item) => (
+              <div key={item.id} className="row" style={{ gap: 7, minWidth: 0 }}>
+                <span aria-hidden="true">{item.emoji}</span>
+                <span className="small grow" style={{ fontSize: 10.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {HONOR_SHORT_LABEL[item.id]}
+                </span>
+                <strong className="mono" style={{ fontSize: 12 }}>{me.honorCounts?.[item.id] ?? 0}</strong>
               </div>
             ))}
           </div>

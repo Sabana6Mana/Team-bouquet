@@ -5,19 +5,37 @@ import type {
   User,
 } from '@supabase/supabase-js'
 import { backendConfig, requireSupabase, supabase } from './client'
-import type { Json, TableInsert, TableRow, TableUpdate } from './database.types'
+import {
+  NATIVE_AUTH_REDIRECT, isNativeApp, openNativeAuth,
+} from '../lib/nativeRuntime'
+import type { Json, TableInsert, TableRow } from './database.types'
+import type { HonorType } from '../types'
+import {
+  type GameplayOutcome,
+  type GameplaySeasonQuest,
+  type GameplaySummary,
+  type SeasonQuestCode,
+  unavailableGameplaySummary,
+} from '../data/gameplay'
+import { achievementDefinition } from '../data/achievements'
+import { VENUES } from '../data/seed'
 import type {
+  BackendAchievement,
   BackendAuthState,
+  BackendMatchHistory,
   BackendRealtimeStatus,
   ChatMessage,
   CurrentMatch,
+  GiveHonorResult,
   JoinQueueInput,
   JoinQueueResult,
   Match,
+  MatchHonor,
   MatchMember,
   MatchMutationResult,
   MatchRealtimeHandlers,
   MatchTeam,
+  Notification,
   PlayerRating,
   Profile,
   ProfileWithRatings,
@@ -55,6 +73,15 @@ function fail(operation: string, error: BackendErrorSource | null): never {
   throw new BackendRequestError(operation, error ?? new Error('Unknown backend error'))
 }
 
+function failProfile(operation: string, error: BackendErrorSource | null): never {
+  const message = error?.message ?? ''
+  const code = error && 'code' in error ? error.code : undefined
+  if (code === '23505' || /duplicate key|nickname.*key|닉네임.*사용 중/i.test(message)) {
+    fail(operation, new Error('이미 사용 중인 닉네임입니다. 다른 이름을 골라 주세요.'))
+  }
+  fail(operation, error)
+}
+
 async function requireUser(): Promise<User> {
   const client = requireSupabase()
   const { data, error } = await client.auth.getUser()
@@ -73,6 +100,132 @@ function jsonString(value: Json | undefined): string | undefined {
 
 function jsonBoolean(value: Json | undefined): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined
+}
+
+function jsonNumber(value: Json | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function jsonArray(value: Json | undefined): Json[] {
+  return Array.isArray(value) ? value : []
+}
+
+function jsonField(value: Record<string, Json | undefined> | null, snake: string, camel?: string): Json | undefined {
+  return value?.[snake] ?? (camel ? value?.[camel] : undefined)
+}
+
+function gameplayEndsLabel(value: string | undefined): string {
+  if (!value) return '이번 주 종료'
+  const endsAt = new Date(value)
+  if (Number.isNaN(endsAt.getTime())) return '이번 주 종료'
+  const remainingDays = Math.max(0, Math.ceil((endsAt.getTime() - Date.now()) / 86_400_000))
+  return remainingDays === 0 ? '오늘 종료' : `D-${remainingDays}`
+}
+
+const SEASON_QUEST_CODES = new Set<SeasonQuestCode>(['first_match', 'venues_3', 'boss_raider'])
+
+function gameplaySummaryFromJson(raw: Json): GameplaySummary | null {
+  const root = jsonObject(raw)
+  const regionRaw = jsonObject(jsonField(root, 'region') ?? null)
+  const bossRaw = jsonObject(jsonField(root, 'boss') ?? null)
+  const seasonRaw = jsonObject(jsonField(root, 'season') ?? null)
+  if (!regionRaw) return null
+  const unavailable = unavailableGameplaySummary()
+
+  const rawVenues = jsonArray(jsonField(root, 'venues'))
+    .map((value) => jsonObject(value))
+    .filter((value): value is Record<string, Json | undefined> => Boolean(value))
+  const venues = VENUES.map((venue) => {
+    const progress = rawVenues.find((value) => (
+      jsonString(jsonField(value, 'venue_id', 'venueId')) ?? jsonString(jsonField(value, 'id'))
+    ) === venue.id)
+    const discoveredAt = jsonString(jsonField(progress ?? null, 'discovered_at', 'discoveredAt')) ?? null
+    const matchCount = jsonNumber(jsonField(progress ?? null, 'visits', 'matchCount')) ?? 0
+    return {
+      id: venue.id,
+      name: venue.name,
+      address: venue.address,
+      sports: [...venue.sports],
+      icon: venue.sports[0] === 'badminton' ? '🏸'
+        : venue.sports[0] === 'tennis' ? '🎾'
+          : venue.sports[0] === 'tabletennis' ? '🏓' : '🏀',
+      discovered: Boolean(discoveredAt || matchCount > 0 || jsonBoolean(jsonField(progress ?? null, 'discovered'))),
+      discoveredAt,
+      matchCount,
+    }
+  })
+  const discovered = jsonNumber(jsonField(regionRaw, 'discovered'))
+    ?? venues.filter((venue) => venue.discovered).length
+  const total = jsonNumber(jsonField(regionRaw, 'total')) ?? venues.length
+
+  const bossVenueId = jsonString(jsonField(bossRaw, 'venue_id', 'venueId')) ?? ''
+  const bossVenue = VENUES.find((venue) => venue.id === bossVenueId)
+  const maxHp = jsonNumber(jsonField(bossRaw, 'max_hp', 'maxHp')) ?? 0
+  const remainingHp = jsonNumber(jsonField(bossRaw, 'remaining_hp', 'remainingHp')) ?? maxHp
+  const myContribution = jsonNumber(jsonField(bossRaw, 'my_contribution', 'myContribution')) ?? 0
+  const thronePoints = jsonNumber(jsonField(bossRaw, 'throne_points', 'thronePoints')) ?? 0
+  const endsAt = jsonString(jsonField(bossRaw, 'ends_at', 'endsAt'))
+
+  const quests: GameplaySeasonQuest[] = jsonArray(jsonField(seasonRaw, 'quests'))
+    .map((value) => jsonObject(value))
+    .filter((value): value is Record<string, Json | undefined> => Boolean(value))
+    .flatMap((value) => {
+      const code = jsonString(jsonField(value, 'achievement_code', 'achievementCode'))
+      if (!code || !SEASON_QUEST_CODES.has(code as SeasonQuestCode)) return []
+      const definition = achievementDefinition(code)
+      const progress = jsonNumber(jsonField(value, 'progress')) ?? 0
+      const target = jsonNumber(jsonField(value, 'target')) ?? definition?.target ?? 1
+      return [{
+        code: code as SeasonQuestCode,
+        name: jsonString(jsonField(value, 'name')) ?? definition?.name ?? code,
+        description: jsonString(jsonField(value, 'description')) ?? definition?.description ?? '',
+        icon: jsonString(jsonField(value, 'icon')) ?? definition?.icon ?? '🎯',
+        rewardTitle: jsonString(jsonField(value, 'reward_title', 'rewardTitle')) ?? definition?.rewardTitle ?? '',
+        progress: Math.min(progress, target),
+        target,
+        completed: Boolean(jsonString(jsonField(value, 'unlocked_at', 'unlockedAt'))) || progress >= target,
+      }]
+    })
+  const seasonEndsAt = jsonString(jsonField(seasonRaw, 'ends_at', 'endsAt'))
+
+  return {
+    region: {
+      id: jsonString(jsonField(regionRaw, 'code', 'id')) ?? 'gangnam',
+      name: jsonString(jsonField(regionRaw, 'name')) ?? '강남구 도감',
+      discovered,
+      total,
+      completionPercent: total > 0 ? Math.round((discovered / total) * 100) : 0,
+    },
+    venues,
+    boss: bossRaw ? {
+      venueId: bossVenueId,
+      venueName: bossVenue?.name ?? '주간 보스 체육관',
+      name: '주간 코트 가디언',
+      icon: '👾',
+      maxHp,
+      remainingHp,
+      startingDamage: Math.max(0, maxHp - remainingHp - myContribution),
+      totalDamage: Math.max(0, maxHp - remainingHp),
+      myContribution,
+      defeated: jsonBoolean(jsonField(bossRaw, 'defeated')) ?? remainingHp <= 0,
+      endsLabel: gameplayEndsLabel(endsAt),
+      throne: {
+        nickname: jsonString(jsonField(bossRaw, 'throne_name', 'throneName')) ?? '도전자 모집 중',
+        avatar: '🐲',
+        contribution: thronePoints,
+        isMe: false,
+      },
+    } : unavailable.boss,
+    season: seasonRaw ? {
+      id: jsonString(jsonField(seasonRaw, 'code', 'id')) ?? 'gangnam-expedition-1',
+      name: jsonString(jsonField(seasonRaw, 'name')) ?? '강남 원정대',
+      subtitle: '운동으로 강남의 거점을 하나씩 밝혀 보세요.',
+      endsLabel: gameplayEndsLabel(seasonEndsAt),
+      completed: quests.filter((quest) => quest.completed).length,
+      total: quests.length,
+      quests,
+    } : unavailable.season,
+  }
 }
 
 function toRealtimeChange<Row extends Record<string, unknown>>(
@@ -112,14 +265,25 @@ export const authApi = {
 
   async signInWithKakao(redirectTo?: string) {
     const client = requireSupabase()
-    const fallbackRedirect = typeof window === 'undefined'
-      ? undefined
-      : `${window.location.origin}/auth/callback`
+    const native = isNativeApp()
+    const fallbackRedirect = native
+      ? NATIVE_AUTH_REDIRECT
+      : typeof window === 'undefined'
+        ? undefined
+        : `${window.location.origin}/auth/callback`
     const { data, error } = await client.auth.signInWithOAuth({
       provider: 'kakao',
-      options: { redirectTo: redirectTo ?? fallbackRedirect },
+      options: {
+        redirectTo: redirectTo ?? fallbackRedirect,
+        skipBrowserRedirect: native,
+        // MATCHPOINT collects its own nickname during onboarding and does not
+        // require a Kakao email. Keep Kakao's consent screen to basic profile
+        // fields so non-Biz Kakao apps can sign in without account_email.
+        queryParams: { scope: 'profile_nickname profile_image' },
+      },
     })
     if (error) fail('카카오 로그인 시작 실패', error)
+    if (native && data.url) await openNativeAuth(data.url)
     return data
   },
 
@@ -129,9 +293,11 @@ export const authApi = {
    */
   async signInWithEmailOtp(email: string, redirectTo?: string) {
     const client = requireSupabase()
-    const fallbackRedirect = typeof window === 'undefined'
-      ? undefined
-      : `${window.location.origin}/auth/callback`
+    const fallbackRedirect = isNativeApp()
+      ? NATIVE_AUTH_REDIRECT
+      : typeof window === 'undefined'
+        ? undefined
+        : `${window.location.origin}/auth/callback`
     const { data, error } = await client.auth.signInWithOtp({
       email: email.trim(),
       options: {
@@ -187,25 +353,26 @@ export const profileApi = {
   async upsert(input: {
     nickname: string
     avatarUrl?: string | null
-    interests?: SportId[]
+    interests: SportId[]
   }): Promise<Profile> {
     const client = requireSupabase()
-    const user = await requireUser()
-    // `handle_new_user` creates the row. Using UPDATE here is intentional:
-    // profiles allow users to update their own row, while direct client inserts
-    // are blocked so a caller cannot bypass the auth trigger contract.
-    const row: TableUpdate<'profiles'> = {
-      nickname: input.nickname.trim(),
-      avatar_url: input.avatarUrl,
-      interests: input.interests,
-    }
-    const { data, error } = await client
-      .from('profiles')
-      .update(row)
-      .eq('id', user.id)
-      .select('*')
-      .single()
-    if (error) fail('프로필 저장 실패', error)
+    await requireUser()
+    const { data, error } = await client.rpc('save_my_profile', {
+      p_nickname: input.nickname.trim(),
+      p_interests: input.interests,
+      p_avatar_url: input.avatarUrl ?? null,
+    })
+    if (error) failProfile('프로필 저장 실패', error)
+    return data
+  },
+
+  async isNicknameAvailable(nickname: string): Promise<boolean> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('is_nickname_available', {
+      p_nickname: nickname.trim(),
+    })
+    if (error) failProfile('닉네임 확인 실패', error)
     return data
   },
 
@@ -214,21 +381,111 @@ export const profileApi = {
     avatarUrl?: string | null
     interests?: SportId[]
   }): Promise<Profile> {
+    const current = await this.getMine()
+    if (!current) fail('프로필 수정 실패', new Error('프로필을 찾을 수 없습니다.'))
+    return this.upsert({
+      nickname: input.nickname ?? current.profile.nickname,
+      avatarUrl: input.avatarUrl,
+      interests: input.interests ?? current.profile.interests,
+    })
+  },
+}
+
+export const achievementApi = {
+  async listMine(): Promise<BackendAchievement[]> {
     const client = requireSupabase()
-    const user = await requireUser()
-    const patch: TableUpdate<'profiles'> = {
-      ...(input.nickname === undefined ? {} : { nickname: input.nickname.trim() }),
-      ...(input.avatarUrl === undefined ? {} : { avatar_url: input.avatarUrl }),
-      ...(input.interests === undefined ? {} : { interests: input.interests }),
-    }
-    const { data, error } = await client
-      .from('profiles')
-      .update(patch)
-      .eq('id', user.id)
-      .select('*')
-      .single()
-    if (error) fail('프로필 수정 실패', error)
+    await requireUser()
+    const { data, error } = await client.rpc('get_my_achievements')
+    if (error) fail('도전과제 조회 실패', error)
+    return (data ?? []).map((row) => ({
+      code: row.code,
+      name: row.name,
+      description: row.description,
+      icon: row.icon,
+      rewardTitle: row.reward_title,
+      rarity: row.rarity,
+      target: row.target,
+      progress: row.progress,
+      unlockedAt: row.unlocked_at,
+      equipped: row.equipped,
+    }))
+  },
+
+  async equip(code: string | null): Promise<string | null> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('equip_my_title', {
+      p_achievement_code: code,
+    })
+    if (error) fail('칭호 장착 실패', error)
     return data
+  },
+}
+
+export const gameplayApi = {
+  async syncMatch(matchId: string): Promise<Json> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('sync_my_match_gameplay', { p_match_id: matchId })
+    if (error) fail('게임 진행 동기화 실패', error)
+    return data ?? null
+  },
+
+  async getSummary(): Promise<GameplaySummary | null> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('get_my_gameplay_summary')
+    if (error) fail('게임 진행 조회 실패', error)
+    return gameplaySummaryFromJson(data ?? null)
+  },
+
+  async getMatchOutcome(
+    matchId: string,
+    summary: GameplaySummary | null,
+  ): Promise<GameplayOutcome | null> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('get_my_match_gameplay_outcome', { p_match_id: matchId })
+    if (error) fail('경기 게임 보상 조회 실패', error)
+    const value = jsonObject(data ?? null)
+    if (!value) return null
+    const venueId = jsonString(jsonField(value, 'venue_id', 'venueId')) ?? ''
+    const venue = VENUES.find((item) => item.id === venueId)
+    const unlockedCodes = jsonArray(jsonField(value, 'unlocked_achievement_codes', 'unlockedAchievementCodes'))
+      .filter((item): item is string => typeof item === 'string')
+    const unlockedQuests = unlockedCodes.flatMap((code) => {
+      const fromSeason = summary?.season.quests.find((quest) => quest.code === code)
+      if (fromSeason) return [fromSeason]
+      const definition = achievementDefinition(code)
+      if (!definition || !SEASON_QUEST_CODES.has(code as SeasonQuestCode)) return []
+      return [{
+        code: code as SeasonQuestCode,
+        name: definition.name,
+        description: definition.description,
+        icon: definition.icon,
+        rewardTitle: definition.rewardTitle,
+        progress: definition.target,
+        target: definition.target,
+        completed: true,
+      }]
+    })
+    return {
+      matchId: jsonString(jsonField(value, 'match_id', 'matchId')) ?? matchId,
+      venueId,
+      venueName: venue?.name ?? '새 체육관',
+      newVenue: jsonBoolean(jsonField(value, 'new_venue', 'newVenue')) ?? false,
+      discovered: jsonNumber(jsonField(value, 'collection_discovered', 'collectionDiscovered'))
+        ?? summary?.region.discovered ?? 0,
+      totalVenues: jsonNumber(jsonField(value, 'collection_total', 'collectionTotal'))
+        ?? summary?.region.total ?? VENUES.length,
+      bossDamage: jsonNumber(jsonField(value, 'boss_damage', 'bossDamage')) ?? 0,
+      bossRemainingHp: jsonNumber(jsonField(value, 'boss_remaining_hp', 'bossRemainingHp'))
+        ?? summary?.boss.remainingHp ?? 0,
+      bossMaxHp: summary?.boss.maxHp ?? 10,
+      seasonCompleted: summary?.season.completed ?? 0,
+      seasonTotal: summary?.season.total ?? 0,
+      unlockedQuests,
+    }
   },
 }
 
@@ -346,8 +603,9 @@ async function findCurrentMatch(userId: string): Promise<Match | null> {
   const client = requireSupabase()
   const memberships = await client
     .from('match_members')
-    .select('match_id, joined_at')
+    .select('match_id, joined_at, completed_at')
     .eq('user_id', userId)
+    .is('completed_at', null)
     .order('joined_at', { ascending: false })
     .limit(20)
   if (memberships.error) fail('매칭 참가 정보 조회 실패', memberships.error)
@@ -357,7 +615,7 @@ async function findCurrentMatch(userId: string): Promise<Match | null> {
     .from('matches')
     .select('*')
     .in('id', ids)
-    .not('phase', 'in', '(done,canceled)')
+    .neq('phase', 'canceled')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -367,16 +625,23 @@ async function findCurrentMatch(userId: string): Promise<Match | null> {
 
 async function hydrateMatch(match: Match): Promise<CurrentMatch> {
   const client = requireSupabase()
-  const [membersResult, messagesResult, slotVotesResult, resultVotesResult] = await Promise.all([
+  const [membersResult, messagesResult, slotVotesResult, resultVotesResult, honorsResult] = await Promise.all([
     client.from('match_members').select('*').eq('match_id', match.id).order('joined_at'),
-    client.from('chat_messages').select('*').eq('match_id', match.id).order('created_at'),
+    client
+      .from('chat_messages')
+      .select('*')
+      .eq('match_id', match.id)
+      .order('created_at', { ascending: false })
+      .limit(100),
     client.from('slot_votes').select('*').eq('match_id', match.id),
     client.from('result_votes').select('*').eq('match_id', match.id),
+    client.from('match_honors').select('*').eq('match_id', match.id),
   ])
   if (membersResult.error) fail('매칭 참가자 조회 실패', membersResult.error)
   if (messagesResult.error) fail('채팅 조회 실패', messagesResult.error)
   if (slotVotesResult.error) fail('시간 투표 조회 실패', slotVotesResult.error)
   if (resultVotesResult.error) fail('결과 투표 조회 실패', resultVotesResult.error)
+  if (honorsResult.error) fail('경기 명예 조회 실패', honorsResult.error)
 
   const members = membersResult.data ?? []
   const userIds = members.map((member) => member.user_id)
@@ -410,15 +675,19 @@ async function hydrateMatch(match: Match): Promise<CurrentMatch> {
       profile: profiles.get(member.user_id) ?? null,
       ratings: ratings.filter((rating) => rating.profile_id === member.user_id),
     })),
-    messages: messagesResult.data ?? [],
+    messages: (messagesResult.data ?? []).reverse(),
     slotVotes: slotVotesResult.data ?? [],
     resultVotes: resultVotesResult.data ?? [],
+    honors: honorsResult.data ?? [],
   }
 }
 
 export const matchApi = {
   async getCurrent(): Promise<CurrentMatch | null> {
+    const client = requireSupabase()
     const user = await requireUser()
+    const { error } = await client.rpc('expire_my_overdue_acceptances')
+    if (error) fail('만료된 매칭 정리 실패', error)
     const match = await findCurrentMatch(user.id)
     return match ? hydrateMatch(match) : null
   },
@@ -429,6 +698,26 @@ export const matchApi = {
     const { data, error } = await client.from('matches').select('*').eq('id', id).maybeSingle()
     if (error) fail('매칭 조회 실패', error)
     return data ? hydrateMatch(data) : null
+  },
+
+  async accept(matchId: string): Promise<MatchMutationResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('accept_match', { p_match_id: matchId })
+    if (error) fail('매칭 수락 실패', error)
+    const raw = data ?? null
+    return { matchId, phase: jsonString(jsonObject(raw)?.phase), raw }
+  },
+
+  async expireAcceptance(matchId: string): Promise<MatchMutationResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('expire_match_acceptance', {
+      p_match_id: matchId,
+    })
+    if (error) fail('매칭 수락 만료 처리 실패', error)
+    const raw = data ?? null
+    return { matchId, phase: jsonString(jsonObject(raw)?.phase), raw }
   },
 
   async setTeams(matchId: string, teamA: string[], teamB: string[]): Promise<MatchMutationResult> {
@@ -532,7 +821,104 @@ export const matchApi = {
           payload as RealtimePostgresChangesPayload<ResultVote>,
         )),
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'match_honors', filter: `match_id=eq.${matchId}` },
+        (payload) => handlers.onHonor?.(toRealtimeChange<MatchHonor>(
+          payload as RealtimePostgresChangesPayload<MatchHonor>,
+        )),
+      )
       .subscribe((status) => handlers.onStatus?.(status))
+    return () => { void client.removeChannel(channel) }
+  },
+}
+
+export const historyApi = {
+  async listMine(limit = 30): Promise<BackendMatchHistory[]> {
+    const client = requireSupabase()
+    const user = await requireUser()
+    const memberships = await client
+      .from('match_members')
+      .select('match_id')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: false })
+      .limit(Math.max(limit * 3, 60))
+    if (memberships.error) fail('내 경기 참가 기록 조회 실패', memberships.error)
+    const ids = [...new Set((memberships.data ?? []).map((row) => row.match_id))]
+    if (ids.length === 0) return []
+
+    const matchesResult = await client
+      .from('matches')
+      .select('*')
+      .in('id', ids)
+      .not('finalized_at', 'is', null)
+      .not('winner_team', 'is', null)
+      .order('finalized_at', { ascending: false })
+      .limit(limit)
+    if (matchesResult.error) fail('완료 경기 조회 실패', matchesResult.error)
+    const matches = matchesResult.data ?? []
+    if (matches.length === 0) return []
+
+    const matchIds = matches.map((match) => match.id)
+    const membersResult = await client
+      .from('match_members')
+      .select('*')
+      .in('match_id', matchIds)
+      .order('joined_at')
+    if (membersResult.error) fail('완료 경기 참가자 조회 실패', membersResult.error)
+    const members = membersResult.data ?? []
+    return matches.map((match) => ({
+      match,
+      members: members.filter((member) => member.match_id === match.id),
+    }))
+  },
+}
+
+export const notificationApi = {
+  async listMine(limit = 50): Promise<Notification[]> {
+    const client = requireSupabase()
+    const user = await requireUser()
+    const { data, error } = await client
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) fail('알림 조회 실패', error)
+    return data ?? []
+  },
+
+  async markAllRead(): Promise<void> {
+    const client = requireSupabase()
+    const user = await requireUser()
+    const { error } = await client
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .is('read_at', null)
+    if (error) fail('알림 읽음 처리 실패', error)
+  },
+
+  subscribeMine(
+    userId: string,
+    onChange: (change: RealtimeRowChange<Notification>) => void,
+    onStatus?: (status: BackendRealtimeStatus) => void,
+  ): () => void {
+    if (!supabase) {
+      onStatus?.('DISABLED')
+      return () => undefined
+    }
+    const client = supabase
+    const channel = client
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        (payload) => onChange(toRealtimeChange<Notification>(
+          payload as RealtimePostgresChangesPayload<Notification>,
+        )),
+      )
+      .subscribe((status) => onStatus?.(status))
     return () => { void client.removeChannel(channel) }
   },
 }
@@ -554,15 +940,13 @@ export const messageApi = {
 
   async send(matchId: string, body: string): Promise<ChatMessage> {
     const client = requireSupabase()
-    const user = await requireUser()
+    await requireUser()
     const trimmed = body.trim()
     if (!trimmed) throw new Error('메시지를 입력해 주세요.')
-    const row: TableInsert<'chat_messages'> = {
-      match_id: matchId,
-      sender_id: user.id,
-      body: trimmed,
-    }
-    const { data, error } = await client.from('chat_messages').insert(row).select('*').single()
+    const { data, error } = await client.rpc('send_match_message', {
+      p_match_id: matchId,
+      p_body: trimmed,
+    })
     if (error) fail('메시지 전송 실패', error)
     return data
   },
@@ -598,14 +982,14 @@ export const voteApi = {
   async result(
     matchId: string,
     winnerTeam: MatchTeam,
-    score?: string | null,
+    score: string,
   ): Promise<ResultVoteResult> {
     const client = requireSupabase()
     await requireUser()
     const { data, error } = await client.rpc('vote_match_result', {
       p_match_id: matchId,
       p_winner_team: winnerTeam,
-      p_score: score ?? null,
+      p_score: score,
     })
     if (error) fail('경기 결과 투표 실패', error)
     const raw = data ?? null
@@ -644,6 +1028,28 @@ export const reportApi = {
   },
 }
 
+export const honorApi = {
+  async give(matchId: string, receiverId: string, honorType: HonorType): Promise<GiveHonorResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('give_match_honor', {
+      p_match_id: matchId,
+      p_receiver_id: receiverId,
+      p_honor_type: honorType,
+    })
+    if (error) fail('명예 전달 실패', error)
+    const raw = data ?? null
+    const value = jsonObject(raw)
+    return {
+      matchId: jsonString(value?.match_id) ?? matchId,
+      receiverId: jsonString(value?.receiver_id) ?? receiverId,
+      honorType: (jsonString(value?.honor_type) as HonorType | undefined) ?? honorType,
+      created: jsonBoolean(value?.created) ?? false,
+      raw,
+    }
+  },
+}
+
 /** Single import point for feature/store integration. */
 export const backendApi = {
   auth: authApi,
@@ -651,9 +1057,14 @@ export const backendApi = {
   venues: venueApi,
   queue: queueApi,
   matches: matchApi,
+  history: historyApi,
+  notifications: notificationApi,
   messages: messageApi,
   votes: voteApi,
   reports: reportApi,
+  honors: honorApi,
+  achievements: achievementApi,
+  gameplay: gameplayApi,
 }
 
-export type { ChatMessage, CurrentMatch, Match, MatchMember, ResultVote, SlotVote }
+export type { ChatMessage, CurrentMatch, Match, MatchHonor, MatchMember, ResultVote, SlotVote }

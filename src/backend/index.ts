@@ -6,6 +6,11 @@ export {
 } from './client'
 export {
   BackendRequestError,
+  achievementApi,
+  gameplayApi,
+  historyApi,
+  honorApi,
+  notificationApi,
   authApi,
   backendApi,
   matchApi,
@@ -21,6 +26,7 @@ export type {
   Json,
   MatchModeCode,
   MatchPhaseCode,
+  HonorTypeCode,
   QueueStatus,
   ReportStatus,
   SlotStatus,

@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import VenueMap, { type MapMarker } from '../components/VenueMap'
 import VenueSheet from '../components/VenueSheet'
 import RankTicker from '../components/RankTicker'
+import { MapProgressSummary } from '../components/gameplay/GameplayWidgets'
 import { activeMatchPath } from '../components/ui'
+import { useBackend } from '../context/BackendProvider'
+import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { HOME, HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
 import { QUICK_RADIUS_M, SPORTS, distanceMeters, tierOf } from '../lib/game'
 import { useApp } from '../store/useApp'
@@ -24,6 +27,7 @@ function testToolsEnabled() {
 
 export default function MapScreen() {
   const me = useApp((state) => state.me)
+  const history = useApp((state) => state.history)
   const coords = useApp((state) => state.coords)
   const account = useApp((state) => state.account)
   const match = useApp((state) => state.match)
@@ -34,6 +38,18 @@ export default function MapScreen() {
   const [filterOpen, setFilterOpen] = useState(false)
   const [testOpen, setTestOpen] = useState(false)
   const nav = useNavigate()
+  const [searchParams] = useSearchParams()
+  const backend = useBackend()
+  const gameplay = backend.liveMatch
+    ? backend.gameplay ?? unavailableGameplaySummary()
+    : localGameplaySummary(history, me)
+
+  useEffect(() => {
+    const requestedVenue = searchParams.get('venue')
+    if (!requestedVenue || !VENUES.some((venue) => venue.id === requestedVenue)) return
+    setActiveId(requestedVenue)
+    setDetailId(requestedVenue)
+  }, [searchParams])
 
   const isAll = sport === 'all'
   const interests = account?.interests ?? []
@@ -46,7 +62,10 @@ export default function MapScreen() {
   )
 
   const markers: MapMarker[] = useMemo(() => {
-    const mapped = venues.map((venue) => {
+    const discovered = new Set(
+      gameplay.venues.filter((venue) => venue.discovered).map((venue) => venue.id),
+    )
+    return venues.map((venue) => {
       // '전체'에서는 그 체육관의 대표 종목으로 아이콘과 순위를 보여준다.
       const shown: SportId = isAll ? venue.sports[0] : sport
       const meta = SPORTS[shown]
@@ -63,14 +82,14 @@ export default function MapScreen() {
         hot: HOT_VENUE_IDS.includes(venue.id),
         tierColor: top ? tierOf(top.elo[shown]).color : '#8296B4',
         elo: top?.elo[shown] ?? 1200,
-        crowned: false,
+        discovered: discovered.has(venue.id),
+        boss: gameplay.boss.venueId === venue.id,
+        throne: gameplay.boss.venueId === venue.id && gameplay.boss.throne.contribution > 0,
         // 필터와 무관한 전체 목록 기준 번호. 3D 건물을 고르게 나눠 준다.
         seat: VENUES.indexOf(venue),
       }
     })
-    const highestElo = Math.max(...mapped.map((marker) => marker.elo))
-    return mapped.map((marker) => ({ ...marker, crowned: marker.elo === highestElo }))
-  }, [venues, sport, isAll])
+  }, [venues, sport, isAll, gameplay])
 
   const active = venues.find((venue) => venue.id === activeId) ?? null
   const detailVenue = VENUES.find((venue) => venue.id === detailId) ?? null
@@ -146,11 +165,14 @@ export default function MapScreen() {
               </span>
               <span className="player-summary__identity">
                 <strong>{me.nickname}</strong>
+                {me.title && <small className="player-summary__title">《{me.title}》</small>}
                 <span className="mono" style={{ color: playerTier.color }}>
                   {playerTier.name} {me.elo[primarySport]}
                 </span>
               </span>
             </button>
+            <span className="summary-divider" aria-hidden="true" />
+            <MapProgressSummary gameplay={gameplay} onOpen={() => nav('/collection')} />
           </div>
 
           <button

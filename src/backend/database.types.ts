@@ -27,6 +27,8 @@ export type QueueStatus = 'waiting' | 'matched' | 'canceled'
 export type SlotStatus = 'open' | 'held' | 'booked' | 'canceled'
 export type TeamSide = 'a' | 'b'
 export type ReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed'
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary'
+export type HonorTypeCode = 'manner' | 'skill' | 'punctual' | 'fun'
 
 export type Database = {
   public: {
@@ -37,6 +39,13 @@ export type Database = {
           nickname: string
           avatar_url: string | null
           interests: SportCode[]
+          equipped_title_code: string | null
+          onboarding_completed_at: string | null
+          honor_total: number
+          honor_manner: number
+          honor_skill: number
+          honor_punctual: number
+          honor_fun: number
           created_at: string
           updated_at: string
         }
@@ -45,6 +54,13 @@ export type Database = {
           nickname: string
           avatar_url?: string | null
           interests?: SportCode[]
+          equipped_title_code?: string | null
+          onboarding_completed_at?: string | null
+          honor_total?: number
+          honor_manner?: number
+          honor_skill?: number
+          honor_punctual?: number
+          honor_fun?: number
           created_at?: string
           updated_at?: string
         }
@@ -52,6 +68,13 @@ export type Database = {
           nickname?: string
           avatar_url?: string | null
           interests?: SportCode[]
+          equipped_title_code?: string | null
+          onboarding_completed_at?: string | null
+          honor_total?: number
+          honor_manner?: number
+          honor_skill?: number
+          honor_punctual?: number
+          honor_fun?: number
           updated_at?: string
         }
         Relationships: []
@@ -64,6 +87,8 @@ export type Database = {
           wins: number
           losses: number
           played: number
+          current_streak: number
+          best_streak: number
           updated_at: string
         }
         Insert: {
@@ -73,6 +98,8 @@ export type Database = {
           wins?: number
           losses?: number
           played?: number
+          current_streak?: number
+          best_streak?: number
           updated_at?: string
         }
         Update: {
@@ -80,6 +107,8 @@ export type Database = {
           wins?: number
           losses?: number
           played?: number
+          current_streak?: number
+          best_streak?: number
           updated_at?: string
         }
         Relationships: []
@@ -93,6 +122,8 @@ export type Database = {
           lat: number
           lng: number
           price_per_hour: number
+          region_code: string | null
+          checkin_radius_m: number
           active: boolean
           created_at: string
           updated_at: string
@@ -105,6 +136,8 @@ export type Database = {
           lat: number
           lng: number
           price_per_hour: number
+          region_code?: string | null
+          checkin_radius_m?: number
           active?: boolean
           created_at?: string
           updated_at?: string
@@ -116,6 +149,8 @@ export type Database = {
           lat?: number
           lng?: number
           price_per_hour?: number
+          region_code?: string | null
+          checkin_radius_m?: number
           active?: boolean
           updated_at?: string
         }
@@ -212,6 +247,7 @@ export type Database = {
           winner_team: TeamSide | null
           score: string | null
           finalized_at: string | null
+          acceptance_deadline: string | null
           created_at: string
           updated_at: string
         }
@@ -228,6 +264,7 @@ export type Database = {
           winner_team?: TeamSide | null
           score?: string | null
           finalized_at?: string | null
+          acceptance_deadline?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -238,6 +275,7 @@ export type Database = {
           winner_team?: TeamSide | null
           score?: string | null
           finalized_at?: string | null
+          acceptance_deadline?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -253,6 +291,8 @@ export type Database = {
           rating_before: number | null
           rating_delta: number | null
           rating_after: number | null
+          completed_at: string | null
+          accepted_at: string | null
           joined_at: string
           updated_at: string
         }
@@ -266,6 +306,8 @@ export type Database = {
           rating_before?: number | null
           rating_delta?: number | null
           rating_after?: number | null
+          completed_at?: string | null
+          accepted_at?: string | null
           joined_at?: string
           updated_at?: string
         }
@@ -275,6 +317,8 @@ export type Database = {
           paid?: boolean
           rating_delta?: number | null
           rating_after?: number | null
+          completed_at?: string | null
+          accepted_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -379,6 +423,8 @@ export type Database = {
           reason: string
           details: string | null
           status: ReportStatus
+          reviewed_at: string | null
+          review_note: string | null
           created_at: string
           updated_at: string
         }
@@ -390,13 +436,62 @@ export type Database = {
           reason: string
           details?: string | null
           status?: ReportStatus
+          reviewed_at?: string | null
+          review_note?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           status?: ReportStatus
+          reviewed_at?: string | null
+          review_note?: string | null
           updated_at?: string
         }
+        Relationships: []
+      }
+      account_sanctions: {
+        Row: {
+          profile_id: string
+          upheld_report_count: number
+          permanently_banned_at: string | null
+          last_reviewed_report_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          upheld_report_count?: number
+          permanently_banned_at?: string | null
+          last_reviewed_report_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          upheld_report_count?: number
+          permanently_banned_at?: string | null
+          last_reviewed_report_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      match_honors: {
+        Row: {
+          id: string
+          match_id: string
+          giver_id: string
+          receiver_id: string
+          honor_type: HonorTypeCode
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          match_id: string
+          giver_id: string
+          receiver_id: string
+          honor_type: HonorTypeCode
+          created_at?: string
+        }
+        Update: never
         Relationships: []
       }
       rating_events: {
@@ -421,6 +516,82 @@ export type Database = {
           created_at?: string
         }
         Update: never
+        Relationships: []
+      }
+      achievement_definitions: {
+        Row: {
+          code: string
+          name: string
+          description: string
+          icon: string
+          metric_code: string
+          target: number
+          title_name: string
+          rarity: AchievementRarity
+          sort_order: number
+          active: boolean
+          hidden: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          name: string
+          description: string
+          icon: string
+          metric_code: string
+          target: number
+          title_name: string
+          rarity: AchievementRarity
+          sort_order?: number
+          active?: boolean
+          hidden?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          description?: string
+          icon?: string
+          metric_code?: string
+          target?: number
+          title_name?: string
+          rarity?: AchievementRarity
+          sort_order?: number
+          active?: boolean
+          hidden?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      player_achievements: {
+        Row: {
+          profile_id: string
+          achievement_code: string
+          progress: number
+          unlocked_at: string | null
+          unlocked_match_id: string | null
+          notified_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          profile_id: string
+          achievement_code: string
+          progress?: number
+          unlocked_at?: string | null
+          unlocked_match_id?: string | null
+          notified_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          progress?: number
+          unlocked_at?: string | null
+          unlocked_match_id?: string | null
+          notified_at?: string | null
+          updated_at?: string
+        }
         Relationships: []
       }
     }
@@ -451,7 +622,7 @@ export type Database = {
         Args: {
           p_match_id: string
           p_winner_team: TeamSide
-          p_score?: string | null
+          p_score: string
         }
         Returns: Json
       }
@@ -488,6 +659,96 @@ export type Database = {
         }
         Returns: Json
       }
+      accept_match: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      expire_match_acceptance: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      expire_my_overdue_acceptances: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_my_achievements: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          code: string
+          name: string
+          description: string
+          icon: string
+          reward_title: string
+          rarity: AchievementRarity
+          target: number
+          progress: number
+          unlocked_at: string | null
+          equipped: boolean
+        }[]
+      }
+      equip_my_title: {
+        Args: {
+          p_achievement_code: string | null
+        }
+        Returns: string | null
+      }
+      sync_my_match_gameplay: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      get_my_gameplay_summary: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      get_my_match_gameplay_outcome: {
+        Args: {
+          p_match_id: string
+        }
+        Returns: Json
+      }
+      is_nickname_available: {
+        Args: {
+          p_nickname: string
+        }
+        Returns: boolean
+      }
+      save_my_profile: {
+        Args: {
+          p_nickname: string
+          p_interests: SportCode[]
+          p_avatar_url?: string | null
+        }
+        Returns: Database['public']['Tables']['profiles']['Row']
+      }
+      give_match_honor: {
+        Args: {
+          p_match_id: string
+          p_receiver_id: string
+          p_honor_type: HonorTypeCode
+        }
+        Returns: Json
+      }
+      send_match_message: {
+        Args: {
+          p_match_id: string
+          p_body: string
+        }
+        Returns: Database['public']['Tables']['chat_messages']['Row']
+      }
+      review_match_report: {
+        Args: {
+          p_report_id: string
+          p_upheld: boolean
+          p_review_note?: string | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       sport_code: SportCode
@@ -497,6 +758,7 @@ export type Database = {
       slot_status: SlotStatus
       team_side: TeamSide
       report_status: ReportStatus
+      honor_type: HonorTypeCode
     }
     CompositeTypes: Record<string, never>
   }

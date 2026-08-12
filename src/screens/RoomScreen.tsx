@@ -182,7 +182,7 @@ function PlayerProfile({
         <span><small>패배</small><b>{player.losses}</b></span>
         <span><small>승률</small><b>{rate === null ? '-' : `${rate}%`}</b></span>
       </div>
-      <span className="wide-pop__foot">👏 칭찬 {player.stickers}개</span>
+      <span className="wide-pop__foot">✨ 명예 {player.stickers}개</span>
     </div>
   )
 }
@@ -705,7 +705,7 @@ export default function RoomScreen() {
 
             {dayStrip(false)}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7, padding: '11px 16px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 7, padding: '11px 16px 0' }}>
               {slotGrid}
             </div>
 

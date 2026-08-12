@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MATCHPOINT</string>
+    <string name="title_activity_main">MATCHPOINT</string>
+    <string name="package_name">com.teambouquet.matchpoint</string>
+    <string name="custom_url_scheme">com.teambouquet.matchpoint</string>
+</resources>

@@ -29,8 +29,8 @@ export function TierBadge({ elo, size = 'md' }: { elo: number; size?: 'sm' | 'md
   )
 }
 
-export function HonorBadge({ stickers }: { stickers: number }) {
-  const h = honorOf(stickers)
+export function HonorBadge({ honors }: { honors: number }) {
+  const h = honorOf(honors)
   return (
     <span className="chip" style={{ color: h.color, borderColor: `${h.color}55`, background: `${h.color}16` }}>
       {'★'.repeat(h.level)}
@@ -57,7 +57,19 @@ export function TopBar({ title, onBack, right }: { title: string; onBack?: () =>
   return (
     <div className="topbar">
       {onBack && (
-        <button onClick={onBack} style={{ fontSize: 22, lineHeight: 1, width: 28 }} aria-label="뒤로">
+        <button
+          onClick={onBack}
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            width: 44,
+            height: 44,
+            margin: '-10px -8px',
+            fontSize: 22,
+            lineHeight: 1,
+          }}
+          aria-label="뒤로"
+        >
           ‹
         </button>
       )}

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
-  Account, AppNotification, Match, MatchMode, MatchRecord, Player, SportId,
+  Account, AppNotification, HonorType, Match, MatchMode, MatchRecord, Player, SportId,
 } from '../types'
 import {
   capacityOf, distanceMeters, eloDelta, encodeSlot, isSlotOpen, QUICK_RADIUS_M,
@@ -11,6 +11,7 @@ import { BOT_CHATS, HOME, NPCS, VENUES } from '../data/seed'
 import { backendApi, backendConfig } from '../backend'
 import { forcedDemo, serverMode } from '../lib/forcedDemo'
 import { INTRO_TOTAL_MS } from '../lib/matchIntro'
+import { localAchievementProgress, titleForAchievement } from '../data/achievements'
 
 /** 데모 시뮬레이션용 타이머. 상태에 넣으면 직렬화가 깨지므로 모듈 레벨에서 관리한다. */
 let timers: ReturnType<typeof setTimeout>[] = []
@@ -56,6 +57,7 @@ function emptyMe(): Player {
     avatar: '🙂',
     elo: { tennis: 1200, badminton: 1200, tabletennis: 1200, basketball: 1200 },
     stickers: 0,
+    honorCounts: { manner: 0, skill: 0, punctual: 0, fun: 0 },
     wins: 0,
     losses: 0,
     isMe: true,
@@ -68,6 +70,8 @@ interface AppState {
   coords: { lat: number; lng: number }
   match: Match | null
   history: MatchRecord[]
+  /** 데모 모드에서 장착한 칭호. 라이브 모드는 profiles.equipped_title_code가 원본이다. */
+  equippedTitleCode: string | null
   notifications: AppNotification[]
   /** 화면 위에 배너로 띄울 알림 */
   toast: AppNotification | null
@@ -86,6 +90,8 @@ interface AppState {
    * (같은 상태를 forcedDemo 모듈이 React 밖에서도 읽는다.)
    */
   testMatch: boolean
+  /** 명예 저장과 경기 완료 RPC가 경합하지 않도록 완료 버튼을 잠근다. */
+  honorSubmitting: boolean
 
   signUp: (a: Omit<Account, 'interests'>) => void
   setInterests: (ids: SportId[]) => void
@@ -99,6 +105,8 @@ interface AppState {
    */
   forceDemoMatch: (sport: SportId, mode: MatchMode) => void
   cancelMatch: () => void
+  acceptMatch: () => void
+  expireMatchAcceptance: () => void
   /** slot은 encodeSlot(날짜 offset, 시각) 으로 인코딩된 값 */
   vote: (slot: number) => void
   sendChat: (text: string) => void
@@ -107,15 +115,16 @@ interface AppState {
   advanceToPayment: () => void
   reportPlayer: (playerId: string, reason: string) => void
   pay: () => void
-  voteResult: (winner: 'a' | 'b') => void
-  finalizeResult: (winner: 'a' | 'b') => void
-  giveSticker: (playerId: string) => void
+  voteResult: (winner: 'a' | 'b', score: string) => void
+  finalizeResult: (winner: 'a' | 'b', score: string) => void
+  giveHonor: (playerId: string, honorType: HonorType) => void
   finishMatch: () => void
   openReporting: () => void
 
   notify: (title: string, body: string, link?: string) => void
   dismissToast: () => void
   markAllRead: () => void
+  equipLocalTitle: (achievementCode: string | null) => void
   joinClan: (id: string) => void
   reset: () => void
 }
@@ -128,6 +137,7 @@ export const useApp = create<AppState>()(
       coords: HOME,
       match: null,
       history: [],
+      equippedTitleCode: null,
       notifications: [],
       toast: null,
       clanId: null,
@@ -137,6 +147,7 @@ export const useApp = create<AppState>()(
       backendSlotIds: {},
       backendRefreshVersion: 0,
       testMatch: false,
+      honorSubmitting: false,
 
       signUp: (a) => {
         const me: Player = {
@@ -185,8 +196,9 @@ export const useApp = create<AppState>()(
           teamReady: {},
           reports: {},
           resultVotes: {},
+          resultVoteScores: {},
           result: null,
-          stickersGiven: [],
+          honorGiven: null,
           createdAt: Date.now(),
         }
         set({ match })
@@ -300,6 +312,46 @@ export const useApp = create<AppState>()(
         }
         set({ match: null })
         endForcedDemo(set)
+      },
+
+      acceptMatch: () => {
+        const m = get().match
+        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline || !serverMode()) return
+        const meId = get().me.id
+        const previous = m.accepted?.[meId] ?? false
+        set({ match: { ...m, accepted: { ...m.accepted, [meId]: true } } })
+        void backendApi.matches.accept(m.id).then((result) => {
+          set((state) => ({
+            match: result.phase === 'canceled' && state.match?.id === m.id ? null : state.match,
+            backendError: null,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : '매칭 수락에 실패했습니다.'
+          set((state) => ({
+            match: state.match?.id === m.id
+              ? { ...state.match, accepted: { ...state.match.accepted, [meId]: previous } }
+              : state.match,
+            backendError: message,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+          get().notify('매칭 수락 실패', message)
+        })
+      },
+
+      expireMatchAcceptance: () => {
+        const m = get().match
+        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline || !serverMode()) return
+        void backendApi.matches.expireAcceptance(m.id).then((result) => {
+          set((state) => ({
+            match: result.phase === 'canceled' && state.match?.id === m.id ? null : state.match,
+            backendError: null,
+            backendRefreshVersion: state.backendRefreshVersion + 1,
+          }))
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : '매칭 수락 만료 처리에 실패했습니다.'
+          set({ backendError: message })
+        })
       },
 
       /* ─────────────── 일정 조율 ─────────────── */
@@ -552,7 +604,7 @@ export const useApp = create<AppState>()(
                 const c2 = get().match
                 if (!c2 || c2.id !== m.id || c2.phase !== 'confirmed') return
                 set({ match: { ...c2, phase: 'reporting' } })
-                get().notify('경기가 끝났어요', '승패를 확정하고 상대에게 칭찬 스티커를 보내주세요.', '/result')
+                get().notify('경기가 끝났어요', '승패를 확정하고 좋은 상대에게 명예를 보내주세요.', '/result')
               }, 7000)
             }
           }, 1200 + i * 1000)
@@ -563,15 +615,21 @@ export const useApp = create<AppState>()(
 
       /* ─────────────── 승패 투표 ─────────────── */
 
-      voteResult: (winner) => {
+      voteResult: (winner, score) => {
         const m = get().match
         if (!m || m.result) return
         const meId = get().me.id
+        const normalizedScore = score.replace(/\s+/g, '')
+        if (!normalizedScore) {
+          get().notify('점수를 입력해 주세요', '참가자 모두 같은 승자와 점수에 동의해야 합니다.')
+          return
+        }
         const votes = { ...m.resultVotes, [meId]: winner }
-        set({ match: { ...m, resultVotes: votes } })
+        const scores = { ...m.resultVoteScores, [meId]: normalizedScore }
+        set({ match: { ...m, resultVotes: votes, resultVoteScores: scores } })
 
         if (serverMode()) {
-          void backendApi.votes.result(m.id, winner).then(() => {
+          void backendApi.votes.result(m.id, winner, normalizedScore).then(() => {
             set((state) => ({
               backendError: null,
               backendRefreshVersion: state.backendRefreshVersion + 1,
@@ -584,6 +642,9 @@ export const useApp = create<AppState>()(
                     ...state.match,
                     resultVotes: Object.fromEntries(
                       Object.entries(state.match.resultVotes).filter(([id]) => id !== meId),
+                    ),
+                    resultVoteScores: Object.fromEntries(
+                      Object.entries(state.match.resultVoteScores).filter(([id]) => id !== meId),
                     ),
                   }
                 : state.match,
@@ -601,16 +662,19 @@ export const useApp = create<AppState>()(
           later(() => {
             const cur = get().match
             if (!cur || cur.id !== m.id || cur.result) return
-            if (cur.resultVotes[meId] !== winner) return // 내가 투표를 바꿨으면 중단
+            if (cur.resultVotes[meId] !== winner || cur.resultVoteScores[meId] !== normalizedScore) return
             const v = { ...cur.resultVotes, [b.id]: winner }
-            set({ match: { ...cur, resultVotes: v } })
-            // 전원이 같은 팀에 투표했을 때만 확정한다.
-            if (cur.players.every((p) => v[p.id] === winner)) get().finalizeResult(winner)
+            const nextScores = { ...cur.resultVoteScores, [b.id]: normalizedScore }
+            set({ match: { ...cur, resultVotes: v, resultVoteScores: nextScores } })
+            // 전원이 같은 팀과 같은 점수에 투표했을 때만 확정한다.
+            if (cur.players.every((p) => v[p.id] === winner && nextScores[p.id] === normalizedScore)) {
+              get().finalizeResult(winner, normalizedScore)
+            }
           }, 900 + i * 1000)
         })
       },
 
-      finalizeResult: (winner) => {
+      finalizeResult: (winner, score) => {
         const m = get().match
         if (!m || m.result) return
         if (serverMode()) return
@@ -625,38 +689,86 @@ export const useApp = create<AppState>()(
           iWon,
         )
         const me = get().me
-        const scoreTable: Record<SportId, string> = {
-          tennis: '6-4', badminton: '21-18', tabletennis: '11-8', basketball: '21-17',
-        }
-
+        const nextStreak = iWon ? (me.streak ?? 0) + 1 : 0
         set({
           me: {
             ...me,
             elo: { ...me.elo, [sport]: me.elo[sport] + delta },
             wins: me.wins + (iWon ? 1 : 0),
             losses: me.losses + (iWon ? 0 : 1),
+            streak: nextStreak,
+            bestStreak: Math.max(me.bestStreak ?? me.streak ?? 0, nextStreak),
           },
-          match: { ...m, result: { winner, score: scoreTable[sport], delta }, phase: 'reporting' },
+          match: { ...m, result: { winner, score, delta }, phase: 'reporting' },
         })
         get().notify('결과 확정!', iWon ? '승리가 기록되었습니다.' : '결과가 기록되었습니다.', '/result')
       },
 
-      giveSticker: (playerId) => {
+      giveHonor: (playerId, honorType) => {
         const m = get().match
-        if (!m || m.stickersGiven.includes(playerId)) return
-        if (serverMode()) {
-          get().notify('칭찬 기능 준비 중', '실사용자 칭찬 스티커는 다음 MVP 단계에서 저장됩니다.')
+        if (!m || m.honorGiven || m.reports[playerId]) return
+        const myTeam = m.teams.a.includes(get().me.id) ? 'a' : 'b'
+        const opponentTeam = myTeam === 'a' ? 'b' : 'a'
+        if (!m.teams[opponentTeam].includes(playerId)) {
+          get().notify('명예 전달 불가', '상대 팀 선수에게만 명예를 보낼 수 있습니다.')
           return
         }
-        set({ match: { ...m, stickersGiven: [...m.stickersGiven, playerId] } })
-        // 데모: 상대도 나에게 스티커를 보내 명예 등급이 오른다.
-        const me = get().me
-        set({ me: { ...me, stickers: me.stickers + 1 } })
+        const honorGiven = { playerId, type: honorType }
+        set({ match: { ...m, honorGiven }, honorSubmitting: serverMode() })
+
+        if (serverMode()) {
+          void backendApi.honors.give(m.id, playerId, honorType).then(() => {
+            set((state) => ({
+              backendError: null,
+              backendRefreshVersion: state.backendRefreshVersion + 1,
+              honorSubmitting: false,
+            }))
+            get().notify('명예 전달 완료 ✨', '좋은 승부를 만든 상대에게 명예가 전달되었습니다.')
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '명예 전달에 실패했습니다.'
+            set((state) => ({
+              match: state.match?.id === m.id && state.match.honorGiven?.playerId === playerId
+                ? { ...state.match, honorGiven: null }
+                : state.match,
+              backendError: message,
+              honorSubmitting: false,
+            }))
+            get().notify('명예 전달 실패', message)
+          })
+          return
+        }
+
+        set((state) => ({
+          honorSubmitting: false,
+          match: state.match?.id === m.id
+            ? {
+                ...state.match,
+                players: state.match.players.map((player) => {
+                  if (player.id !== playerId) return player
+                  const honorCounts = player.honorCounts
+                    ?? { manner: 0, skill: 0, punctual: 0, fun: 0 }
+                  return {
+                    ...player,
+                    stickers: player.stickers + 1,
+                    honorCounts: {
+                      ...honorCounts,
+                      [honorType]: honorCounts[honorType] + 1,
+                    },
+                  }
+                }),
+              }
+            : state.match,
+        }))
+        get().notify('명예 전달 완료 ✨', '상대의 프로필 명예 등급에 반영되었습니다.')
       },
 
       finishMatch: () => {
         const m = get().match
         if (!m) return
+        if (get().honorSubmitting) {
+          get().notify('잠시만 기다려 주세요', '명예를 안전하게 저장하고 있습니다.')
+          return
+        }
         const meId = get().me.id
         const myTeam = m.teams.a.includes(meId) ? 'a' : 'b'
         const iWon = m.result?.winner === myTeam
@@ -728,16 +840,45 @@ export const useApp = create<AppState>()(
       },
 
       dismissToast: () => set({ toast: null }),
-      markAllRead: () => set({ notifications: get().notifications.map((n) => ({ ...n, read: true })) }),
+      markAllRead: () => {
+        set({ notifications: get().notifications.map((n) => ({ ...n, read: true })) })
+        if (serverMode()) {
+          void backendApi.notifications.markAllRead().then(() => {
+            set((state) => ({ backendRefreshVersion: state.backendRefreshVersion + 1 }))
+          }).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : '알림 읽음 처리에 실패했습니다.'
+            set({ backendError: message })
+          })
+        }
+      },
+      equipLocalTitle: (achievementCode) => {
+        if (achievementCode) {
+          const unlocked = localAchievementProgress(get().me, get().history, get().equippedTitleCode)
+            .some((achievement) => achievement.code === achievementCode && achievement.unlockedAt)
+          if (!unlocked) {
+            get().notify('아직 잠긴 칭호예요', '도전과제를 달성한 뒤 장착할 수 있습니다.')
+            return
+          }
+        }
+        const title = titleForAchievement(achievementCode)
+        set({
+          equippedTitleCode: achievementCode,
+          me: { ...get().me, titleCode: achievementCode, title },
+        })
+        get().notify(
+          achievementCode ? '칭호 장착 완료' : '칭호를 해제했습니다',
+          achievementCode ? `《${title}》 칭호를 장착했습니다.` : '기본 프로필로 돌아갑니다.',
+        )
+      },
       joinClan: (id) => set({ clanId: get().clanId === id ? null : id }),
 
       reset: () => {
         clearTimers()
         forcedDemo.disable()
         set({
-          account: null, me: emptyMe(), match: null, history: [],
+          account: null, me: emptyMe(), match: null, history: [], equippedTitleCode: null,
           notifications: [], toast: null, clanId: null, coords: HOME,
-          backendSlotIds: {}, backendError: null, testMatch: false,
+          backendSlotIds: {}, backendError: null, testMatch: false, honorSubmitting: false,
         })
       },
     }),
@@ -746,7 +887,7 @@ export const useApp = create<AppState>()(
       partialize: (s) => backendConfig.configured
         ? { coords: s.coords }
         : {
-            account: s.account, me: s.me, history: s.history,
+            account: s.account, me: s.me, history: s.history, equippedTitleCode: s.equippedTitleCode,
             notifications: s.notifications, clanId: s.clanId,
           },
     },

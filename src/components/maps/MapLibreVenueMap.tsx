@@ -27,6 +27,7 @@ interface VenueMarkerEntry {
   marker: Marker
   element: HTMLButtonElement
   badge: HTMLSpanElement
+  status: HTMLSpanElement
   image: HTMLImageElement
   click: () => void
 }
@@ -244,13 +245,17 @@ function buildVenueElement(marker: MapMarker, onClick: () => void): VenueMarkerE
   crown.textContent = '♛'
   crown.setAttribute('aria-hidden', 'true')
 
+  const status = document.createElement('span')
+  status.className = 'venue-game-status'
+  status.setAttribute('aria-hidden', 'true')
+
   // 지도 위에는 이름표를 두지 않는다. 이름과 ELO는 상세 팝업에서 본다.
   // (읽어 주는 이름은 위 aria-label 에 남아 있다.)
-  element.append(image, badge, crown)
+  element.append(image, badge, crown, status)
   element.addEventListener('click', onClick)
 
   const mapMarker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 10] })
-  return { marker: mapMarker, element, badge, image, click: onClick }
+  return { marker: mapMarker, element, badge, status, image, click: onClick }
 }
 
 function createPlayerElement() {
@@ -315,7 +320,9 @@ export default function MapLibreVenueMap({
     color: marker.color,
     seat: marker.seat,
     hot: marker.hot,
-    crowned: marker.crowned,
+    discovered: marker.discovered,
+    boss: marker.boss,
+    throne: marker.throne,
     selected: marker.id === activeId,
   }))
 
@@ -439,15 +446,19 @@ export default function MapLibreVenueMap({
       const selected = marker.id === activeId
       entry.marker.setLngLat([marker.lng, marker.lat])
       entry.element.classList.toggle('is-selected', selected)
-      entry.element.classList.toggle('is-crowned', marker.crowned)
+      entry.element.classList.toggle('is-undiscovered', !marker.discovered)
+      entry.element.classList.toggle('is-boss', marker.boss)
+      entry.element.classList.toggle('is-throne', marker.throne)
       entry.element.classList.toggle('is-hot', marker.hot)
       entry.element.style.setProperty('--venue-color', marker.color)
       entry.element.style.setProperty('--tier-color', marker.tierColor)
-      entry.element.style.zIndex = selected ? '8' : marker.crowned ? '6' : '2'
+      entry.element.style.zIndex = selected ? '8' : marker.boss || marker.throne ? '6' : '2'
       entry.element.setAttribute('aria-pressed', String(selected))
       entry.element.setAttribute('aria-label', `${marker.fullLabel}, ${marker.sportLabel}, ELO ${marker.elo}`)
       entry.badge.textContent = marker.emoji
       entry.badge.hidden = !marker.emoji
+      entry.status.textContent = marker.boss ? '👾' : marker.discovered ? '' : '?'
+      entry.status.hidden = marker.discovered && !marker.boss
       // 건물은 3D 레이어가 그리므로 평면 스프라이트는 감춘다.
       entry.image.hidden = true
     })

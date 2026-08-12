@@ -27,7 +27,10 @@
   --purple: #7a5bbd;
 
   --radius: 16px;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   color-scheme: light;
 }
 
@@ -60,6 +63,8 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
   box-shadow: 0 0 60px rgba(47, 125, 70, 0.12);
 }
 
@@ -83,6 +88,7 @@ a { color: inherit; text-decoration: none; }
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
+  scroll-padding-bottom: calc(24px + var(--safe-bottom));
   -webkit-overflow-scrolling: touch;
 }
 
@@ -348,6 +354,30 @@ a { color: inherit; text-decoration: none; }
   transition: opacity 0.2s ease, transform 0.2s ease;
   pointer-events: none;
 }
+.venue-game-status {
+  position: absolute;
+  left: 12px;
+  top: 18px;
+  z-index: 4;
+  display: grid;
+  min-width: 27px;
+  height: 27px;
+  padding: 0 6px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(45, 57, 52, 0.84);
+  box-shadow: 0 4px 12px rgba(19, 32, 27, 0.28);
+  font-size: 15px;
+  line-height: 1;
+  pointer-events: none;
+}
+.venue-entity.is-boss .venue-game-status {
+  background: linear-gradient(145deg, #7c3aed, #f97316);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18), 0 0 18px rgba(168, 85, 247, 0.7);
+  animation: bossPulse 1.8s ease-in-out infinite;
+}
 .venue-label {
   position: absolute;
   left: calc(50% + 39px);
@@ -402,7 +432,13 @@ a { color: inherit; text-decoration: none; }
   filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
 }
 .venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
-.venue-entity.is-crowned .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.venue-entity.is-throne .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.venue-entity.is-undiscovered:not(.is-selected):not(.is-boss) { filter: grayscale(0.88); opacity: 0.67; }
+.venue-entity.is-undiscovered .venue-sport-badge {
+  color: #eff5f2;
+  background: #6f7d76;
+  box-shadow: 0 2px 9px rgba(31, 50, 40, 0.22);
+}
 .venue-entity.is-hot:not(.is-selected)::after {
   content: '●';
   position: absolute;
@@ -667,6 +703,41 @@ a { color: inherit; text-decoration: none; }
   animation: flame 1.15s ease-in-out infinite;
   pointer-events: none;
 }
+.marker-game-badge,
+.marker-throne {
+  position: absolute;
+  z-index: 3;
+  line-height: 1;
+  pointer-events: none;
+}
+.marker-game-badge {
+  left: -12px;
+  top: -13px;
+  font-size: 20px;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.85));
+  animation: bossPulse 1.8s ease-in-out infinite;
+}
+.marker-throne {
+  left: 50%;
+  top: -30px;
+  color: #f4b91e;
+  font-size: 25px;
+  text-shadow: 0 1px 0 #fff1a4, 0 0 9px rgba(244, 185, 30, 0.72);
+  transform: translateX(-50%);
+}
+.mk.is-undiscovered:not(.on):not(.is-boss) { filter: grayscale(0.88); opacity: 0.68; }
+.mk.is-undiscovered .marker-pin {
+  color: #69766f;
+  background: linear-gradient(160deg, #f2f5f3, #dfe6e2);
+}
+.mk.is-boss .marker-pin {
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.45), 0 0 18px rgba(168, 85, 247, 0.62);
+}
+
+@keyframes bossPulse {
+  0%, 100% { transform: scale(0.94); }
+  50% { transform: scale(1.08); }
+}
 
 /* 불꽃이 흔들리며 타오르는 움직임 */
 @keyframes flame {
@@ -694,7 +765,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marker-badge, .marker-badge::before { animation: none; }
+  .marker-badge, .marker-badge::before, .marker-game-badge, .venue-game-status { animation: none; }
 }
 
 .marker-tip {
@@ -797,7 +868,7 @@ a { color: inherit; text-decoration: none; }
   right: 0;
   top: 0;
   z-index: 30;
-  height: 158px;
+  height: calc(158px + var(--safe-top));
   padding: 0 14px;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(245, 249, 252, 0.97) 0%, rgba(245, 249, 252, 0.72) 70%, transparent 100%);
@@ -806,7 +877,7 @@ a { color: inherit; text-decoration: none; }
   position: absolute;
   left: 0;
   right: 0;
-  top: 7px;
+  top: calc(7px + var(--safe-top));
   color: #121719;
   font-size: 22px;
   font-weight: 950;
@@ -818,7 +889,7 @@ a { color: inherit; text-decoration: none; }
   position: absolute;
   left: 14px;
   right: 14px;
-  top: 36px;
+  top: calc(36px + var(--safe-top));
   display: flex;
   align-items: stretch;
   gap: 8px;
@@ -946,7 +1017,7 @@ a { color: inherit; text-decoration: none; }
 }
 .sport-filter-menu {
   position: absolute;
-  top: 108px;
+  top: calc(108px + var(--safe-top));
   right: 14px;
   z-index: 40;
   width: 184px;
@@ -1028,7 +1099,7 @@ a { color: inherit; text-decoration: none; }
 /* ───────────── LED 전광판 티커 ───────────── */
 
 .ticker {
-  position: absolute; left: 14px; right: 14px; top: 110px; z-index: 33;
+  position: absolute; left: 14px; right: 14px; top: calc(110px + var(--safe-top)); z-index: 33;
   height: 38px; border-radius: 9px; overflow: hidden;
   background: linear-gradient(180deg, #0e2b1a 0%, #071510 100%);
   border: 1px solid rgba(120, 220, 150, 0.35);
@@ -1122,11 +1193,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (max-height: 720px) {
-  .map-hud-top { height: 122px; }
+  .map-hud-top { height: calc(122px + var(--safe-top)); }
   .map-wordmark { display: none; }
-  .map-summary-row { top: 8px; height: 60px; }
-  .ticker { top: 76px; }
-  .sport-filter-menu { top: 72px; }
+  .map-summary-row { top: calc(8px + var(--safe-top)); height: 60px; }
+  .ticker { top: calc(76px + var(--safe-top)); }
+  .sport-filter-menu { top: calc(72px + var(--safe-top)); }
   .quick-match-button { min-height: 56px; }
   .quick-match-button__copy small { display: none; }
 }
@@ -1244,9 +1315,11 @@ a { color: inherit; text-decoration: none; }
 
 .arena-stage {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* 선수 줄. 위는 상대, 아래는 우리 팀.
@@ -1350,6 +1423,9 @@ a { color: inherit; text-decoration: none; }
 /* 가운데 선택 창 */
 .arena-panel {
   flex: 1;
+  width: calc(100% - 32px);
+  max-width: calc(100% - 32px);
+  min-width: 0;
   min-height: 0;
   margin: 4px 16px;
   overflow-y: auto;
@@ -2119,9 +2195,71 @@ a { color: inherit; text-decoration: none; }
   .wide-chat { height: 68%; bottom: 56px; }
 }
 
+/* 568×320급 소형 휴대폰에서는 양쪽 캐릭터 열을 압축해
+   가운데 시간표가 실제 조작 가능한 폭을 확보하도록 한다. */
+@media (orientation: landscape) and (max-width: 700px) {
+  .arena--wide { padding: 4px 6px 6px; }
+  .wide-grid {
+    grid-template-columns: 74px minmax(0, 1fr) 74px;
+    gap: 4px;
+  }
+  .wide-cast {
+    --figure: 38px !important;
+    padding: 7px 0 38px;
+  }
+  .stage-player { gap: 1px; }
+  .stage-player__name { max-width: 70px; font-size: 8.5px; }
+
+  .wide-panel { width: 100%; border-radius: 12px; }
+  .wide-panel__head {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 5px 7px;
+  }
+  .wide-panel__head .stack { flex: 1; text-align: left; }
+  .wide-panel__head strong {
+    display: block;
+    overflow: hidden;
+    font-size: 11px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wide-panel__head .small,
+  .wide-panel__icon { display: none; }
+  .wide-panel__head > .chip { height: 21px; padding: 0 6px; font-size: 8px; }
+  .wide-price { padding: 3px 6px; border-radius: 8px; }
+  .wide-price small { display: none; }
+  .wide-price b { font-size: 10px; white-space: nowrap; }
+
+  .wide-panel__bar {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    padding: 4px 7px 3px;
+  }
+  .wide-panel__bar .label { font-size: 8px; letter-spacing: 0.35px; }
+  .wide-legend { display: none; }
+  .wide-days { justify-content: flex-start; gap: 3px; padding: 0 7px 3px; }
+  .wide-day { width: 32px; padding: 2px 0; border-radius: 7px; }
+  .wide-day span:first-child { font-size: 7px !important; }
+  .wide-day .mono { font-size: 9px !important; }
+
+  .wide-slots { gap: 3px; padding: 4px 7px 5px; }
+  .wide-slots .slot { height: 34px; min-height: 34px; border-radius: 7px; }
+  .wide-slots .slot .mono { font-size: 9px !important; }
+  .wide-slots .slot span:last-child { font-size: 7px !important; }
+  .wide-panel__foot { display: none; }
+
+  .wide-back { top: 5px; left: 6px; width: 30px; height: 30px; }
+  .wide-actions { left: 6px; bottom: 5px; }
+  .wide-actions .btn { height: 32px; padding: 0 9px; font-size: 9.5px; }
+  .wide-chat-toggle { right: 6px; bottom: 5px; height: 32px; padding: 0 9px; font-size: 9.5px; }
+  .wide-chat { right: 6px; bottom: 43px; width: min(280px, 58%); height: 76%; }
+}
+
 .topbar {
   display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px;
+  padding: calc(14px + var(--safe-top)) 16px 14px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -2129,7 +2267,7 @@ a { color: inherit; text-decoration: none; }
 /* ───────────────── 알림 배너 ───────────────── */
 
 .toast {
-  position: absolute; top: 12px; left: 12px; right: 12px;
+  position: absolute; top: calc(12px + var(--safe-top)); left: 12px; right: 12px;
   z-index: 90;
   display: flex; gap: 12px; align-items: flex-start;
   padding: 13px 15px;
@@ -2147,6 +2285,140 @@ a { color: inherit; text-decoration: none; }
 
 .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--court), var(--court-2)); transition: width 0.4s ease; }
+
+/* ───────────────── 도전과제 · 칭호 ───────────────── */
+
+.achievement-screen { background: linear-gradient(180deg, #f7fbf8, #eef6f0); }
+.achievement-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 17px;
+  overflow: hidden;
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(255, 221, 106, 0.32), transparent 42%),
+    linear-gradient(135deg, #fffdf5, #f5faef);
+  box-shadow: 0 12px 30px rgba(72, 93, 57, 0.1);
+}
+.achievement-hero::after {
+  content: '';
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  right: -45px;
+  top: -58px;
+  border: 18px solid rgba(184, 134, 11, 0.08);
+  border-radius: 50%;
+}
+.achievement-hero__crest {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(184, 134, 11, 0.35);
+  border-radius: 17px;
+  background: linear-gradient(145deg, #fff8d9, #f4d77a);
+  font-size: 27px;
+  box-shadow: inset 0 1px 0 #fff, 0 7px 18px rgba(184, 134, 11, 0.16);
+}
+.achievement-progress-summary {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dae8dd;
+}
+.achievement-progress-summary > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d59d18, #f0c448, #4e9a5e);
+  box-shadow: 0 0 10px rgba(213, 157, 24, 0.28);
+  transition: width 0.45s ease;
+}
+.achievement-filter { flex: 1; justify-content: center; }
+.achievement-filter.is-active {
+  color: #fff;
+  border-color: var(--court);
+  background: var(--court);
+}
+.achievement-card {
+  --rarity-color: var(--court);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--rarity-color) 35%, var(--line));
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 8px 22px rgba(30, 70, 43, 0.07);
+}
+.achievement-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--rarity-color);
+}
+.achievement-card.is-locked { filter: saturate(0.55); opacity: 0.78; }
+.achievement-card.is-equipped {
+  border-color: var(--rarity-color);
+  box-shadow: 0 0 0 1px var(--rarity-color), 0 11px 26px color-mix(in srgb, var(--rarity-color) 14%, transparent);
+}
+.achievement-card__icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--rarity-color) 32%, var(--line));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--rarity-color) 10%, #fff);
+  font-size: 24px;
+}
+.achievement-rarity {
+  flex: 0 0 auto;
+  color: var(--rarity-color);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+.achievement-card__reward {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.achievement-card__reward b { color: var(--rarity-color); font-size: 12px; }
+.achievement-equip { align-self: center; height: 34px !important; padding: 0 11px !important; }
+.achievement-equip.is-equipped { color: #fff; border-color: var(--court); background: var(--court); }
+.achievement-entry-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px;
+  text-align: left;
+  border: 1px solid rgba(184, 134, 11, 0.28);
+  border-radius: 17px;
+  background: linear-gradient(135deg, #fffdf5, #f2f8ed);
+}
+.achievement-entry-card__icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f6e9b5;
+  font-size: 22px;
+}
+.profile-title, .player-summary__title { color: var(--gold); font-weight: 800; }
 
 /* ───────────── 경기 결과 ELO 막대 연출 ───────────── */
 

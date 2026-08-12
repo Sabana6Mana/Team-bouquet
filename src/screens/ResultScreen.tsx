@@ -2,30 +2,48 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { VENUES } from '../data/seed'
+import { localGameplayOutcome } from '../data/gameplay'
 import {
-  HONOR_GRADES, MODE_LABEL, REPORT_REASONS, SPORTS, STICKERS,
+  HONOR_GRADES, HONOR_TYPES, MODE_LABEL, REPORT_REASONS, SPORTS,
   honorOf, reportReasonLabel, tierOf,
 } from '../lib/game'
 import { TopBar } from '../components/ui'
 import EloBar from '../components/EloBar'
+import { MatchGameplayRewards } from '../components/gameplay/GameplayWidgets'
+import { useBackend } from '../context/BackendProvider'
+
+const DEFAULT_SCORE: Record<'tennis' | 'badminton' | 'tabletennis' | 'basketball', string> = {
+  tennis: '6-4',
+  badminton: '21-18',
+  tabletennis: '11-8',
+  basketball: '21-17',
+}
 
 export default function ResultScreen() {
   const match = useApp((s) => s.match)
   const me = useApp((s) => s.me)
   const voteResult = useApp((s) => s.voteResult)
-  const giveSticker = useApp((s) => s.giveSticker)
+  const giveHonor = useApp((s) => s.giveHonor)
+  const honorSubmitting = useApp((s) => s.honorSubmitting)
   const reportPlayer = useApp((s) => s.reportPlayer)
   const finishMatch = useApp((s) => s.finishMatch)
+  const history = useApp((s) => s.history)
+  const backend = useBackend()
   const nav = useNavigate()
 
-  const [stickerFor, setStickerFor] = useState<string | null>(null)
+  const [honorFor, setHonorFor] = useState<string | null>(null)
   const [reportFor, setReportFor] = useState<string | null>(null)
+  const [score, setScore] = useState(match ? DEFAULT_SCORE[match.sport] : '')
   /** ELO 연출이 끝나야 세부 내용을 펼친다 */
   const [revealed, setRevealed] = useState(false)
 
   useEffect(() => {
     if (!match) nav('/', { replace: true })
   }, [match])
+
+  useEffect(() => {
+    if (match && !score) setScore(DEFAULT_SCORE[match.sport])
+  }, [match, score])
 
   if (!match) return null
 
@@ -38,18 +56,29 @@ export default function ResultScreen() {
   const delta = match.result?.delta ?? 0
   const eloBefore = me.elo[match.sport] - delta
   const honor = honorOf(me.stickers)
+  const localOutcome = localGameplayOutcome(match, history, me)
+  const gameplayOutcome = backend.liveMatch
+    ? backend.gameplayOutcome?.matchId === match.id ? backend.gameplayOutcome : null
+    : localOutcome
 
   const playerOf = (id: string) => match.players.find((p) => p.id === id)!
-  const opponents = match.players.filter((p) => !p.isMe)
+  const opponentTeam: 'a' | 'b' = myTeam === 'a' ? 'b' : 'a'
+  const opponents = match.players.filter((p) => match.teams[opponentTeam].includes(p.id))
 
   /* ── 1단계: 승패 투표 (전원 일치해야 확정) ── */
   if (!reported) {
     const myVote = match.resultVotes[me.id]
+    const myVoteScore = match.resultVoteScores[me.id]
     const votedCount = Object.keys(match.resultVotes).length
     const countFor = (side: 'a' | 'b') =>
       match.players.filter((p) => match.resultVotes[p.id] === side).length
-    const conflict =
-      votedCount === match.capacity && countFor('a') > 0 && countFor('b') > 0
+    const voteSignatures = match.players
+      .map((player) => {
+        const winner = match.resultVotes[player.id]
+        return winner ? `${winner}:${match.resultVoteScores[player.id] ?? ''}` : null
+      })
+      .filter((value): value is string => Boolean(value))
+    const conflict = votedCount === match.capacity && new Set(voteSignatures).size > 1
 
     return (
       <div className="overlay">
@@ -80,6 +109,7 @@ export default function ResultScreen() {
               <span className="label">투표 현황</span>
               {match.players.map((p) => {
                 const v = match.resultVotes[p.id]
+                const submittedScore = match.resultVoteScores[p.id]
                 const color = v === 'a' ? 'var(--blue)' : v === 'b' ? 'var(--red)' : 'var(--muted)'
                 const reported = match.reports[p.id]
                 return (
@@ -96,7 +126,7 @@ export default function ResultScreen() {
                           borderColor: v && color !== 'var(--muted)' ? color : 'var(--line)',
                         }}
                       >
-                        {v === 'a' ? '🔵 A팀' : v === 'b' ? '🔴 B팀' : '대기중'}
+                        {v === 'a' ? `🔵 A팀 · ${submittedScore}` : v === 'b' ? `🔴 B팀 · ${submittedScore}` : '대기중'}
                       </span>
                       {!p.isMe && (
                         reported ? (
@@ -164,21 +194,37 @@ export default function ResultScreen() {
                 <div className="stack grow" style={{ gap: 2 }}>
                   <strong style={{ fontSize: 13.5, color: 'var(--red)' }}>투표가 일치하지 않습니다</strong>
                   <span className="small" style={{ fontSize: 11 }}>
-                    서로 결과를 확인한 뒤 다시 투표해 주세요. 전원이 같은 팀을 고를 때까지 확정되지 않습니다.
+                    서로 결과를 확인한 뒤 다시 투표해 주세요. 승리 팀과 점수가 모두 같아야 확정됩니다.
                   </span>
                 </div>
               </div>
             )}
 
+            <div className="card stack" style={{ gap: 9 }}>
+              <label className="label" htmlFor="result-score">최종 점수</label>
+              <input
+                id="result-score"
+                className="field mono"
+                value={score}
+                maxLength={40}
+                placeholder={DEFAULT_SCORE[match.sport]}
+                onChange={(event) => setScore(event.target.value)}
+                aria-describedby="result-score-help"
+              />
+              <span id="result-score-help" className="small" style={{ fontSize: 11 }}>
+                예: {DEFAULT_SCORE[match.sport]} · 참가자 모두 같은 점수를 입력해야 합니다.
+              </span>
+            </div>
+
             {(['a', 'b'] as const).map((side) => {
               const isMine = side === myTeam
               const color = side === 'a' ? 'var(--blue)' : 'var(--red)'
-              const picked = myVote === side
+              const picked = myVote === side && myVoteScore === score.trim()
               const n = countFor(side)
               return (
                 <button
                   key={side}
-                  onClick={() => voteResult(side)}
+                  onClick={() => voteResult(side, score)}
                   className="card stack"
                   style={{
                     gap: 12, padding: 16, textAlign: 'left',
@@ -229,7 +275,7 @@ export default function ResultScreen() {
     )
   }
 
-  /* ── 2단계: ELO 변동 + 칭찬 스티커 ── */
+  /* ── 2단계: ELO 변동 + 경기 명예 ── */
   return (
     <div className="overlay">
       <TopBar title="경기 종료" />
@@ -266,17 +312,23 @@ export default function ResultScreen() {
             <span className="mono" style={{ fontSize: 22, fontWeight: 800 }}>{match.result!.score}</span>
           </div>
 
-          {/* 칭찬 스티커 */}
+          <MatchGameplayRewards outcome={gameplayOutcome} />
+
+          {/* 경기 명예 */}
           <div className="stack" style={{ gap: 11 }}>
             <div className="stack" style={{ gap: 5 }}>
-              <span className="label">칭찬 스티커 보내기</span>
+              <span className="label">상대에게 명예 보내기</span>
               <p className="small" style={{ fontSize: 11.5 }}>
-                함께한 플레이어에게 스티커를 보내세요. 받은 스티커가 쌓이면 명예 등급이 올라갑니다.
+                좋은 승부를 만든 상대 한 명을 골라 명예를 보내세요. 경기당 한 번만 보낼 수 있습니다.
               </p>
             </div>
 
             {opponents.map((p) => {
-              const sent = match.stickersGiven.includes(p.id)
+              const sent = match.honorGiven?.playerId === p.id
+              const chanceUsed = !!match.honorGiven && !sent
+              const selectedHonor = sent
+                ? HONOR_TYPES.find((item) => item.id === match.honorGiven?.type)
+                : null
               const reported = match.reports[p.id]
               const h = honorOf(p.stickers)
               return (
@@ -300,22 +352,25 @@ export default function ResultScreen() {
                     </div>
                     {sent ? (
                       <span className="chip" style={{ color: 'var(--gold)', borderColor: 'rgba(184, 134, 11,0.5)' }}>
-                        전달 완료 ✓
+                        {selectedHonor?.emoji} 전달 완료 ✓
                       </span>
+                    ) : chanceUsed ? (
+                      <span className="chip" style={{ color: 'var(--muted)' }}>명예 전달 완료</span>
                     ) : (
                       <button
                         className="btn sm"
-                        disabled={!!reported}
-                        onClick={() => { setReportFor(null); setStickerFor(stickerFor === p.id ? null : p.id) }}
+                        disabled={!!reported || honorSubmitting}
+                        onClick={() => { setReportFor(null); setHonorFor(honorFor === p.id ? null : p.id) }}
                       >
-                        스티커 주기
+                        명예 보내기
                       </button>
                     )}
-                    {!reported && (
+                    {!reported && !sent && (
                       <button
                         className="chip"
                         style={{ height: 30, fontSize: 12, color: 'var(--muted)' }}
-                        onClick={() => { setStickerFor(null); setReportFor(reportFor === p.id ? null : p.id) }}
+                        disabled={honorSubmitting}
+                        onClick={() => { setHonorFor(null); setReportFor(reportFor === p.id ? null : p.id) }}
                         aria-label={`${p.nickname} 신고`}
                       >
                         🚩
@@ -332,17 +387,18 @@ export default function ResultScreen() {
                     </div>
                   )}
 
-                  {stickerFor === p.id && !sent && !reported && (
+                  {honorFor === p.id && !match.honorGiven && !reported && (
                     <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-                      {STICKERS.map((s) => (
+                      {HONOR_TYPES.map((item) => (
                         <button
-                          key={s.id}
+                          key={item.id}
                           className="card row"
                           style={{ gap: 8, padding: 11 }}
-                          onClick={() => { giveSticker(p.id); setStickerFor(null) }}
+                          disabled={honorSubmitting}
+                          onClick={() => { giveHonor(p.id, item.id); setHonorFor(null) }}
                         >
-                          <span style={{ fontSize: 19 }}>{s.emoji}</span>
-                          <span style={{ fontSize: 11.5, fontWeight: 600, textAlign: 'left' }}>{s.label}</span>
+                          <span style={{ fontSize: 19 }}>{item.emoji}</span>
+                          <span style={{ fontSize: 11.5, fontWeight: 600, textAlign: 'left' }}>{item.label}</span>
                         </button>
                       ))}
                     </div>
@@ -386,7 +442,7 @@ export default function ResultScreen() {
               />
             </div>
             <div className="row spread">
-              <span className="small mono">스티커 {me.stickers}개</span>
+              <span className="small mono">받은 명예 {me.stickers}개</span>
               <span className="small">
                 {honor.next ? `다음 등급까지 ${honor.next - me.stickers}개` : '최고 등급 달성 🎉'}
               </span>
@@ -414,9 +470,10 @@ export default function ResultScreen() {
           <button
             className="btn primary"
             style={{ width: '100%', height: 56, fontSize: 16 }}
+            disabled={honorSubmitting}
             onClick={() => { finishMatch(); nav('/', { replace: true }) }}
           >
-            완료
+            {honorSubmitting ? '명예 저장 중…' : '완료'}
           </button>
         </div>
       )}
