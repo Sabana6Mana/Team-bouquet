@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { VENUES } from '../data/seed'
+import { localGameplayOutcome } from '../data/gameplay'
 import {
   HONOR_GRADES, HONOR_TYPES, MODE_LABEL, REPORT_REASONS, SPORTS,
   honorOf, reportReasonLabel, tierOf,
 } from '../lib/game'
 import { TopBar } from '../components/ui'
 import EloBar from '../components/EloBar'
+import { MatchGameplayRewards } from '../components/gameplay/GameplayWidgets'
+import { useBackend } from '../context/BackendProvider'
 
 const DEFAULT_SCORE: Record<'tennis' | 'badminton' | 'tabletennis' | 'basketball', string> = {
   tennis: '6-4',
@@ -24,6 +27,8 @@ export default function ResultScreen() {
   const honorSubmitting = useApp((s) => s.honorSubmitting)
   const reportPlayer = useApp((s) => s.reportPlayer)
   const finishMatch = useApp((s) => s.finishMatch)
+  const history = useApp((s) => s.history)
+  const backend = useBackend()
   const nav = useNavigate()
 
   const [honorFor, setHonorFor] = useState<string | null>(null)
@@ -51,6 +56,10 @@ export default function ResultScreen() {
   const delta = match.result?.delta ?? 0
   const eloBefore = me.elo[match.sport] - delta
   const honor = honorOf(me.stickers)
+  const localOutcome = localGameplayOutcome(match, history, me)
+  const gameplayOutcome = backend.liveMatch
+    ? backend.gameplayOutcome?.matchId === match.id ? backend.gameplayOutcome : null
+    : localOutcome
 
   const playerOf = (id: string) => match.players.find((p) => p.id === id)!
   const opponentTeam: 'a' | 'b' = myTeam === 'a' ? 'b' : 'a'
@@ -302,6 +311,8 @@ export default function ResultScreen() {
             </h1>
             <span className="mono" style={{ fontSize: 22, fontWeight: 800 }}>{match.result!.score}</span>
           </div>
+
+          <MatchGameplayRewards outcome={gameplayOutcome} />
 
           {/* 경기 명예 */}
           <div className="stack" style={{ gap: 11 }}>

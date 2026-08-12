@@ -1,6 +1,8 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RARITY_META, localAchievementProgress } from '../data/achievements'
+import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
+import { SeasonQuestPanel } from '../components/gameplay/GameplayWidgets'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
 import { useApp } from '../store/useApp'
@@ -21,6 +23,9 @@ export default function AchievementsScreen() {
   const achievements = backend.enabled
     ? backend.achievements
     : localAchievementProgress(me, history, equippedTitleCode)
+  const gameplay = backend.liveMatch
+    ? backend.gameplay ?? unavailableGameplaySummary()
+    : localGameplaySummary(history, me)
   const unlockedCount = achievements.filter((achievement) => achievement.unlockedAt).length
   const equipped = achievements.find((achievement) => achievement.equipped)
   const shown = useMemo(() => achievements.filter((achievement) => {
@@ -60,6 +65,8 @@ export default function AchievementsScreen() {
               </button>
             )}
           </section>
+
+          <SeasonQuestPanel gameplay={gameplay} />
 
           <div className="achievement-progress-summary">
             <i style={{ width: `${achievements.length ? (unlockedCount / achievements.length) * 100 : 0}%` }} />

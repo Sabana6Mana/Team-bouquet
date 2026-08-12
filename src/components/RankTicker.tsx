@@ -1,6 +1,8 @@
 import { NPCS, REGION } from '../data/seed'
+import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SPORT_LIST } from '../lib/game'
 import { useApp } from '../store/useApp'
+import { useBackend } from '../context/BackendProvider'
 
 /** 종목마다 다른 감탄 이모지 */
 const HYPE = ['🔥', '⚡', '💥', '🚀']
@@ -11,6 +13,11 @@ const HYPE = ['🔥', '⚡', '💥', '🚀']
  */
 export default function RankTicker() {
   const me = useApp((s) => s.me)
+  const history = useApp((s) => s.history)
+  const backend = useBackend()
+  const gameplay = backend.liveMatch
+    ? backend.gameplay ?? unavailableGameplaySummary()
+    : localGameplaySummary(history, me)
 
   const items = SPORT_LIST.map((s, i) => {
     const top = [...NPCS, me].sort((a, b) => b.elo[s.id] - a.elo[s.id])[0]
@@ -23,6 +30,15 @@ export default function RankTicker() {
       <span className="ticker-item ticker-lead">
         📣 지금 <b>{REGION}</b> 실시간 랭킹 발표!! 📣
       </span>
+
+      {gameplay.boss.venueId && (
+        <span className="ticker-item">
+          <span className="ticker-sport">👾 이번 주 보스</span>
+          <span className="ticker-name">{gameplay.boss.venueName}</span>
+          <span className="ticker-elo mono">HP {gameplay.boss.remainingHp}/{gameplay.boss.maxHp}</span>
+          <span className="ticker-crown">👑 {gameplay.boss.throne.nickname}</span>
+        </span>
+      )}
 
       {items.map(({ sport, player, hype }) => (
         <span className="ticker-item" key={sport.id}>
