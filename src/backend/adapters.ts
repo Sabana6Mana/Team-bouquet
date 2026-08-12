@@ -15,6 +15,7 @@ import type {
   VenueSlot,
 } from './types'
 import { titleForAchievement } from '../data/achievements'
+import { isAvatarImageUrl } from '../data/characters'
 
 const SPORTS: AppSportId[] = ['tennis', 'badminton', 'tabletennis', 'basketball']
 const MODES: AppMatchMode[] = ['1v1', '2v2', '3v3']
@@ -111,7 +112,7 @@ export function profileToAccount(value: ProfileWithRatings): AppAccount {
 function profileAvatar(value: string | null): string {
   // Existing components render Player.avatar as text. Preserve emoji/text values,
   // but do not accidentally print a full avatar URL into the UI.
-  if (!value || /^https?:\/\//i.test(value)) return '🙂'
+  if (!value || isAvatarImageUrl(value)) return '🙂'
   return value.length <= 12 ? value : '🙂'
 }
 
@@ -127,7 +128,7 @@ export function profileToPlayer(
     id: value.profile.id,
     nickname: value.profile.nickname,
     avatar: profileAvatar(value.profile.avatar_url),
-    avatarUrl: value.profile.avatar_url && /^https?:\/\//i.test(value.profile.avatar_url)
+    avatarUrl: isAvatarImageUrl(value.profile.avatar_url)
       ? value.profile.avatar_url
       : null,
     elo,

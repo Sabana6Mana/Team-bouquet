@@ -2,6 +2,7 @@ import { useApp } from '../store/useApp'
 import { CLANS, NPCS } from '../data/seed'
 import { SPORTS, tierOf } from '../lib/game'
 import { Jumbotron } from '../components/ui'
+import PlayerAvatar from '../components/PlayerAvatar'
 
 export default function ClanScreen() {
   const clanId = useApp((s) => s.clanId)
@@ -72,7 +73,7 @@ export default function ClanScreen() {
                 <div key={p.id} className="lb-row">
                   <span className={`rank${i < 3 ? ` g${i + 1}` : ''}`}>{i + 1}</span>
                   <div className="row grow" style={{ gap: 9 }}>
-                    <span style={{ fontSize: 16 }}>{p.avatar}</span>
+                    <PlayerAvatar player={p} style={{ width: 25, height: 25, flexShrink: 0 }} />
                     <span
                       style={{
                         fontSize: 13, fontWeight: p.isMe ? 800 : 600,

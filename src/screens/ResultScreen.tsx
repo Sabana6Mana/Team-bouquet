@@ -11,6 +11,7 @@ import { TopBar } from '../components/ui'
 import EloBar from '../components/EloBar'
 import { MatchGameplayRewards } from '../components/gameplay/GameplayWidgets'
 import { useBackend } from '../context/BackendProvider'
+import PlayerAvatar from '../components/PlayerAvatar'
 
 const DEFAULT_SCORE: Record<'tennis' | 'badminton' | 'tabletennis' | 'basketball', string> = {
   tennis: '6-4',
@@ -115,7 +116,7 @@ export default function ResultScreen() {
                 return (
                   <div key={p.id} className="stack" style={{ gap: 8 }}>
                     <div className="row" style={{ gap: 10 }}>
-                      <span className="avatar sm">{p.avatar}</span>
+                      <PlayerAvatar player={p} className="avatar sm" />
                       <span className="grow" style={{ fontSize: 13 }}>
                         {p.nickname}{p.isMe && ' (나)'}
                       </span>
@@ -249,7 +250,7 @@ export default function ResultScreen() {
                       const t = tierOf(p.elo[match.sport])
                       return (
                         <div key={id} className="row" style={{ gap: 10 }}>
-                          <span className="avatar sm">{p.avatar}</span>
+                          <PlayerAvatar player={p} className="avatar sm" />
                           <span className="grow" style={{ fontSize: 13.5, fontWeight: 600 }}>{p.nickname}</span>
                           <span className="mono small" style={{ color: t.color, fontWeight: 700 }}>
                             {p.elo[match.sport]}
@@ -343,7 +344,7 @@ export default function ResultScreen() {
                   }}
                 >
                   <div className="row" style={{ gap: 11 }}>
-                    <div className="avatar">{p.avatar}</div>
+                    <PlayerAvatar player={p} className="avatar" />
                     <div className="stack grow" style={{ gap: 3 }}>
                       <strong style={{ fontSize: 14 }}>{p.nickname}</strong>
                       <span className="small" style={{ fontSize: 11, color: h.color }}>
