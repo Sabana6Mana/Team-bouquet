@@ -31,7 +31,7 @@ PWA가 아니며, iOS 프로젝트는 아직 없습니다.
 
 - **Node.js 20 LTS**
 - **Capacitor 7** — `npm install`로 저장소에 지정된 버전이 설치됩니다.
-- **Java JDK 17**
+- **Java JDK 21** — Capacitor 7 Android 빌드에 필요합니다.
 - **Android Studio**
 - **Android SDK Platform 35**
 - Android SDK Build-Tools 35, Platform-Tools, Command-line Tools
@@ -44,20 +44,35 @@ npm -v
 java -version
 ```
 
-Node가 20이 아니거나 Java가 17이 아니면 먼저 버전을 맞춥니다. Android Studio의
+Node가 20이 아니거나 Java가 21이 아니면 먼저 버전을 맞춥니다. Android Studio의
 `SDK Manager`에서 Android SDK Platform 35와 필요한 SDK Tools를 설치합니다.
 
-Windows 환경 변수 예시는 다음과 같습니다. 실제 경로는 본인 PC의 Android Studio와
-JDK 설치 위치를 사용해야 합니다.
+현재 Windows 검증 PC의 실제 설치 위치는 다음과 같습니다.
+
+```text
+JDK 21: C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot
+Android SDK: C:\Users\박광민\AppData\Local\Android\Sdk
+```
+
+PowerShell을 새로 열 때 다음처럼 현재 셸의 경로를 맞춥니다. 다른 PC에서는 실제 JDK 설치
+위치만 바꾸고, Android SDK는 보통 `$env:LOCALAPPDATA\Android\Sdk`에 있습니다.
 
 ```powershell
-$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17"
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot"
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
-$env:Path += ";$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\cmdline-tools\latest\bin"
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:Path"
+
+java -version
+& "$env:ANDROID_HOME\platform-tools\adb.exe" version
 ```
 
 Android Studio로 `android` 폴더를 처음 열면 SDK 경로가 들어간
 `android/local.properties`가 생성됩니다. 이 파일은 PC마다 경로가 달라 Git에 올리지 않습니다.
+
+현재 검증 기준 설치 패키지는 `platforms;android-35`, `build-tools;35.0.0`,
+`platform-tools`, `emulator`, `system-images;android-35;google_apis;x86_64`입니다. 화면 검증용
+AVD는 Pixel 7, Android 15(API 35), x86_64 조합을 사용합니다.
 
 ### Android SDK 라이선스
 
