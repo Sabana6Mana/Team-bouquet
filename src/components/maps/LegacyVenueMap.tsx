@@ -64,11 +64,13 @@ function esc(s: string) {
 /** 네이버 오버레이에 넣을 마커 HTML. 내장 맵 마커와 같은 CSS를 공유한다. */
 function markerHtml(m: MapMarker, active: boolean): string {
   return (
-    `<div class="mk nmarker${active ? ' on' : ''}" style="color:${m.color};--tier:${m.tierColor}">` +
+    `<div class="mk nmarker${active ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}${m.throne ? ' is-throne' : ''}" style="color:${m.color};--tier:${m.tierColor}">` +
     '<div class="marker-beam"></div>' +
     (active ? '<div class="marker-halo"></div>' : '') +
-    `<div class="marker-pin">${m.emoji}` +
+    `<div class="marker-pin">${m.discovered ? m.emoji : '?'}` +
     (m.hot ? '<span class="marker-badge">🔥</span>' : '') +
+    (m.boss ? '<span class="marker-game-badge">👾</span>' : '') +
+    (m.throne ? '<span class="marker-throne">♛</span>' : '') +
     '</div>' +
     `<div class="marker-tip">${esc(m.label)}</div>` +
     '</div>'
@@ -358,7 +360,7 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
         return (
           <div
             key={m.id}
-            className={`mk marker${on ? ' on' : ''}`}
+            className={`mk marker${on ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}${m.throne ? ' is-throne' : ''}`}
             style={{
               left: p.x, top: p.y, color: m.color,
               ['--tier' as string]: m.tierColor,
@@ -371,8 +373,10 @@ export default function VenueMap({ center, me, markers, activeId, onMarkerClick,
             <div className="marker-beam" />
             {on && <div className="marker-halo" />}
             <div className="marker-pin" style={{ animationDelay: `${i * 260}ms` }}>
-              {m.emoji}
+              {m.discovered ? m.emoji : '?'}
               {m.hot && <span className="marker-badge">🔥</span>}
+              {m.boss && <span className="marker-game-badge">👾</span>}
+              {m.throne && <span className="marker-throne">♛</span>}
             </div>
             <div className="marker-tip">{m.label}</div>
           </div>

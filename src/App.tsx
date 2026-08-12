@@ -20,6 +20,7 @@ import TeamScreen from './screens/TeamScreen'
 import PaymentScreen from './screens/PaymentScreen'
 import ResultScreen from './screens/ResultScreen'
 import AchievementsScreen from './screens/AchievementsScreen'
+import CollectionScreen from './screens/CollectionScreen'
 
 function TabLayout() {
   const unread = useApp((s) => s.notifications.filter((n) => !n.read).length)
@@ -102,6 +103,7 @@ export default function App() {
           {/* 프로필은 탭이 아니라 지도 상단 카드에서 들어가는 상세 화면 */}
           <Route path="/profile" element={<ProfileScreen />} />
           <Route path="/achievements" element={<AchievementsScreen />} />
+          <Route path="/collection" element={<CollectionScreen />} />
 
           <Route path="/queue/new" element={<MatchSetup />} />
           <Route path="/queue" element={<QueueScreen />} />

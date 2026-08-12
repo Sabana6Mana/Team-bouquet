@@ -18,8 +18,12 @@ export interface MapMarker {
   tierColor: string
   /** 현재 종목 기준 체육관 최고 ELO */
   elo: number
-  /** 선택 종목·지역 기준 가장 높은 거점 */
-  crowned: boolean
+  /** 내가 이 체육관에서 유효 경기를 완료해 지역 도감에 등록했는지 */
+  discovered: boolean
+  /** 현재 주간 공동 보스가 열린 거점 */
+  boss: boolean
+  /** 주간 기여도 1위의 왕좌가 표시되는 거점 */
+  throne: boolean
   /**
    * 전체 거점 목록에서의 고정 자리 번호.
    * 3D 건물을 돌아가며 배정할 때 쓴다. 종목 필터로 목록이 줄어도

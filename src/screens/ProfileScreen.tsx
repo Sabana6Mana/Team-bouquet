@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { CLANS, VENUES } from '../data/seed'
+import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { HONOR_GRADES, HONOR_TYPES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
@@ -27,6 +28,9 @@ export default function ProfileScreen() {
   const bestTier = tierOf(me.elo[best.id])
   const total = me.wins + me.losses
   const winRate = total ? Math.round((me.wins / total) * 100) : 0
+  const gameplay = backend.liveMatch
+    ? backend.gameplay ?? unavailableGameplaySummary()
+    : localGameplaySummary(history, me)
 
   return (
     <div className="overlay">
@@ -68,14 +72,29 @@ export default function ProfileScreen() {
           </div>
         </div>
 
-        <button className="achievement-entry-card" onClick={() => nav('/achievements')}>
-          <span className="achievement-entry-card__icon" aria-hidden="true">🏆</span>
-          <span className="stack grow" style={{ gap: 3, textAlign: 'left' }}>
-            <strong>도전과제 · 칭호</strong>
-            <small>{me.title ? `현재 《${me.title}》 장착 중` : '경기를 플레이하고 나만의 칭호를 획득하세요'}</small>
-          </span>
-          <span aria-hidden="true">›</span>
-        </button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+          <button
+            className="card stack"
+            style={{ gap: 7, minHeight: 104, padding: 14, textAlign: 'left', borderColor: 'rgba(47,125,70,0.28)' }}
+            onClick={() => nav('/collection')}
+          >
+            <span aria-hidden="true" style={{ fontSize: 24 }}>🗺️</span>
+            <strong style={{ fontSize: 13 }}>지역 도감</strong>
+            <span className="small">강남 {gameplay.region.discovered}/{gameplay.region.total} 발견</span>
+          </button>
+          <button
+            className="card stack"
+            style={{ gap: 7, minHeight: 104, padding: 14, textAlign: 'left', borderColor: 'rgba(184,134,11,0.30)' }}
+            onClick={() => nav('/achievements')}
+          >
+            <span aria-hidden="true" style={{ fontSize: 24 }}>🏆</span>
+            <strong style={{ fontSize: 13 }}>시즌 · 칭호</strong>
+            <span className="small">
+              {gameplay.season.completed}/{gameplay.season.total} 완료
+              {me.title ? ` · 《${me.title}》` : ''}
+            </span>
+          </button>
+        </div>
 
         {/* 명예 등급 */}
         <div className="card stack" style={{ gap: 12 }}>

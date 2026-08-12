@@ -354,6 +354,30 @@ a { color: inherit; text-decoration: none; }
   transition: opacity 0.2s ease, transform 0.2s ease;
   pointer-events: none;
 }
+.venue-game-status {
+  position: absolute;
+  left: 12px;
+  top: 18px;
+  z-index: 4;
+  display: grid;
+  min-width: 27px;
+  height: 27px;
+  padding: 0 6px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(45, 57, 52, 0.84);
+  box-shadow: 0 4px 12px rgba(19, 32, 27, 0.28);
+  font-size: 15px;
+  line-height: 1;
+  pointer-events: none;
+}
+.venue-entity.is-boss .venue-game-status {
+  background: linear-gradient(145deg, #7c3aed, #f97316);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18), 0 0 18px rgba(168, 85, 247, 0.7);
+  animation: bossPulse 1.8s ease-in-out infinite;
+}
 .venue-label {
   position: absolute;
   left: calc(50% + 39px);
@@ -408,7 +432,13 @@ a { color: inherit; text-decoration: none; }
   filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
 }
 .venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
-.venue-entity.is-crowned .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.venue-entity.is-throne .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+.venue-entity.is-undiscovered:not(.is-selected):not(.is-boss) { filter: grayscale(0.88); opacity: 0.67; }
+.venue-entity.is-undiscovered .venue-sport-badge {
+  color: #eff5f2;
+  background: #6f7d76;
+  box-shadow: 0 2px 9px rgba(31, 50, 40, 0.22);
+}
 .venue-entity.is-hot:not(.is-selected)::after {
   content: '●';
   position: absolute;
@@ -673,6 +703,41 @@ a { color: inherit; text-decoration: none; }
   animation: flame 1.15s ease-in-out infinite;
   pointer-events: none;
 }
+.marker-game-badge,
+.marker-throne {
+  position: absolute;
+  z-index: 3;
+  line-height: 1;
+  pointer-events: none;
+}
+.marker-game-badge {
+  left: -12px;
+  top: -13px;
+  font-size: 20px;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.85));
+  animation: bossPulse 1.8s ease-in-out infinite;
+}
+.marker-throne {
+  left: 50%;
+  top: -30px;
+  color: #f4b91e;
+  font-size: 25px;
+  text-shadow: 0 1px 0 #fff1a4, 0 0 9px rgba(244, 185, 30, 0.72);
+  transform: translateX(-50%);
+}
+.mk.is-undiscovered:not(.on):not(.is-boss) { filter: grayscale(0.88); opacity: 0.68; }
+.mk.is-undiscovered .marker-pin {
+  color: #69766f;
+  background: linear-gradient(160deg, #f2f5f3, #dfe6e2);
+}
+.mk.is-boss .marker-pin {
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.45), 0 0 18px rgba(168, 85, 247, 0.62);
+}
+
+@keyframes bossPulse {
+  0%, 100% { transform: scale(0.94); }
+  50% { transform: scale(1.08); }
+}
 
 /* 불꽃이 흔들리며 타오르는 움직임 */
 @keyframes flame {
@@ -700,7 +765,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .marker-badge, .marker-badge::before { animation: none; }
+  .marker-badge, .marker-badge::before, .marker-game-badge, .venue-game-status { animation: none; }
 }
 
 .marker-tip {
