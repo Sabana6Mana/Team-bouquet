@@ -39,31 +39,36 @@ function ProgressBar({
 /** 지도 상단의 비어 있던 보조 칸에 들어가는 한 번 탭 가능한 진행 요약이다. */
 export function MapProgressSummary({
   gameplay,
-  onOpen,
+  onOpenCollection,
+  onOpenSeason,
 }: {
   gameplay: GameplaySummary
-  onOpen?: () => void
+  onOpenCollection?: () => void
+  onOpenSeason?: () => void
 }) {
   const { region, season } = gameplay
   return (
-    <button
-      type="button"
+    <div
       className="local-champion"
-      onClick={onOpen}
-      aria-label={`${region.name} ${region.discovered}/${region.total}, 시즌 퀘스트 ${season.completed}/${season.total}`}
+      role="group"
+      aria-label="지도 게임 진행도"
       style={{
         width: '100%',
         height: '100%',
-        padding: '6px 8px',
+        padding: 0,
         flexDirection: 'column',
         alignItems: 'stretch',
         justifyContent: 'center',
-        gap: 5,
-        cursor: onOpen ? 'pointer' : 'default',
+        gap: 0,
         textAlign: 'left',
       }}
     >
-      <span className="row spread" style={{ gap: 5, minWidth: 0, flexDirection: 'row' }}>
+      <button
+        type="button"
+        className="map-progress-link"
+        onClick={onOpenCollection}
+        aria-label={`${region.name} ${region.discovered}/${region.total} 도감 열기`}
+      >
         <span className="row" style={{ gap: 4, minWidth: 0 }}>
           <span aria-hidden="true">🗺️</span>
           <strong style={{ overflow: 'hidden', fontSize: 10.5, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -73,8 +78,13 @@ export function MapProgressSummary({
         <span className="mono" style={{ color: 'var(--court)', fontSize: 11, fontWeight: 900 }}>
           {region.discovered}/{region.total}
         </span>
-      </span>
-      <span className="row spread" style={{ gap: 5, minWidth: 0, flexDirection: 'row' }}>
+      </button>
+      <button
+        type="button"
+        className="map-progress-link"
+        onClick={onOpenSeason}
+        aria-label={`시즌 퀘스트 ${season.completed}/${season.total} 열기`}
+      >
         <span className="row" style={{ gap: 4, minWidth: 0 }}>
           <span aria-hidden="true">🎯</span>
           <strong style={{ overflow: 'hidden', fontSize: 10.5, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -84,8 +94,8 @@ export function MapProgressSummary({
         <span className="mono" style={{ color: 'var(--purple)', fontSize: 11, fontWeight: 900 }}>
           {season.completed}/{season.total}
         </span>
-      </span>
-    </button>
+      </button>
+    </div>
   )
 }
 

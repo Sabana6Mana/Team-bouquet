@@ -174,7 +174,11 @@ export default function MapScreen() {
               </span>
             </button>
             <span className="summary-divider" aria-hidden="true" />
-            <MapProgressSummary gameplay={gameplay} onOpen={() => nav('/collection')} />
+            <MapProgressSummary
+              gameplay={gameplay}
+              onOpenCollection={() => nav('/collection')}
+              onOpenSeason={() => nav('/achievements#season-quests')}
+            />
           </div>
 
           <button
