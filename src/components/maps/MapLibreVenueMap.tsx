@@ -256,23 +256,17 @@ function buildVenueElement(marker: MapMarker, onClick: () => void): VenueMarkerE
   return { marker: mapMarker, element, badge, status, image, click: onClick }
 }
 
-function createPlayerElement(playerAvatarUrl?: string | null) {
+function createPlayerElement() {
   const element = document.createElement('div')
-  element.className = 'player-map-marker'
+  element.className = 'player-location-marker'
   element.setAttribute('aria-label', '내 위치')
 
-  const platform = document.createElement('span')
-  platform.className = 'player-platform'
-  const direction = document.createElement('span')
-  direction.className = 'player-direction'
-  const image = document.createElement('img')
-  image.className = 'player-dino'
-  image.src = playerAvatarUrl || '/map/player-dino.webp'
-  image.alt = ''
-  image.draggable = false
-  image.hidden = false
+  const pulse = document.createElement('span')
+  pulse.className = 'player-location-pulse'
+  const core = document.createElement('span')
+  core.className = 'player-location-core'
 
-  element.append(platform, direction, image)
+  element.append(pulse, core)
   return element
 }
 
@@ -294,7 +288,6 @@ function routeData(me: Props['me'], target?: MapMarker) {
 export default function MapLibreVenueMap({
   center,
   me,
-  playerAvatarUrl,
   markers,
   activeId,
   onMarkerClick,
@@ -444,7 +437,6 @@ export default function MapLibreVenueMap({
       const selected = marker.id === activeId
       entry.marker.setLngLat([marker.lng, marker.lat])
       entry.element.classList.toggle('is-selected', selected)
-      entry.element.classList.toggle('is-undiscovered', !marker.discovered)
       entry.element.classList.toggle('is-boss', marker.boss)
       entry.element.classList.toggle('is-hot', marker.hot)
       entry.element.style.setProperty('--venue-color', marker.color)
@@ -476,21 +468,18 @@ export default function MapLibreVenueMap({
     if (!map || !ready) return
 
     if (!playerMarkerRef.current) {
-      const element = createPlayerElement(playerAvatarUrl)
-      playerMarkerRef.current = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 8] })
+      const element = createPlayerElement()
+      playerMarkerRef.current = new maplibregl.Marker({ element, anchor: 'center' })
         .setLngLat([me.lng, me.lat])
         .addTo(map)
     } else {
       playerMarkerRef.current.setLngLat([me.lng, me.lat])
-      const image = playerMarkerRef.current.getElement().querySelector<HTMLImageElement>('.player-dino')
-      const source = playerAvatarUrl || '/map/player-dino.webp'
-      if (image && image.getAttribute('src') !== source) image.src = source
     }
 
     const selected = markers.find((marker) => marker.id === activeId)
     const source = map.getSource(ROUTE_SOURCE_ID) as GeoJSONSource | undefined
     source?.setData(routeData(me, selected))
-  }, [me.lat, me.lng, playerAvatarUrl, markers, activeId, ready])
+  }, [me.lat, me.lng, markers, activeId, ready])
 
   // 거점 목록이나 선택이 바뀌면 3D 모델 배치도 다시 맞춘다.
   useEffect(() => {

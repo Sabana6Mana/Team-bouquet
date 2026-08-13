@@ -64,7 +64,7 @@ function esc(s: string) {
 /** 네이버 오버레이에 넣을 마커 HTML. 내장 맵 마커와 같은 CSS를 공유한다. */
 function markerHtml(m: MapMarker, active: boolean): string {
   return (
-    `<div class="mk nmarker${active ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}" style="color:${m.color};--tier:${m.tierColor}" aria-label="${esc(m.fullLabel)}${m.boss ? ', 배드민턴 보스 거점' : ''}">` +
+    `<button type="button" class="mk nmarker${active ? ' on' : ''}${m.boss ? ' is-boss' : ''}" style="color:${m.color};--tier:${m.tierColor}" aria-label="${esc(m.fullLabel)}${m.boss ? ', 배드민턴 보스 거점' : ''}">` +
     '<div class="marker-beam"></div>' +
     (active ? '<div class="marker-halo"></div>' : '') +
     `<div class="marker-pin">${m.emoji || '🏟️'}` +
@@ -72,7 +72,7 @@ function markerHtml(m: MapMarker, active: boolean): string {
     (m.boss ? '<span class="marker-game-badge">🏸 BOSS</span>' : '') +
     '</div>' +
     `<div class="marker-tip">${esc(m.label)}</div>` +
-    '</div>'
+    '</button>'
   )
 }
 
@@ -103,7 +103,7 @@ function getOrCreateMap(el: HTMLElement, center: { lat: number; lng: number }): 
 
 /* ─────────────────────── 컴포넌트 ─────────────────────── */
 
-export default function VenueMap({ center, me, playerAvatarUrl, markers, activeId, onMarkerClick, focus }: Props) {
+export default function VenueMap({ center, me, markers, activeId, onMarkerClick, focus }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   /** 네이버 지도 전용 컨테이너 — React는 이 안에 절대 렌더링하지 않는다. */
   const naverHostRef = useRef<HTMLDivElement>(null)
@@ -233,7 +233,7 @@ export default function VenueMap({ center, me, playerAvatarUrl, markers, activeI
     })
   }, [useNaver, markers, activeId])
 
-  /* 내 위치도 오버레이로 올려 지도와 함께 움직이게 한다. */
+  /* 내 위치는 캐릭터 대신 작은 위치 펄스로 표시하고 지도와 함께 움직이게 한다. */
   const meOverlayRef = useRef<any>(null)
   useEffect(() => {
     const map = naverMapRef.current
@@ -242,10 +242,9 @@ export default function VenueMap({ center, me, playerAvatarUrl, markers, activeI
     if (!nv?.maps) return
 
     const pos = new nv.maps.LatLng(me.lat, me.lng)
-    const source = esc(playerAvatarUrl || '/map/player-dino.webp')
     const icon = {
-      content: `<div class="nme-character"><span></span><img src="${source}" alt=""></div>`,
-      anchor: new nv.maps.Point(34, 58),
+      content: '<div class="nme-location" aria-label="내 위치"><span class="player-location-pulse"></span><span class="player-location-core"></span></div>',
+      anchor: new nv.maps.Point(24, 24),
     }
     if (meOverlayRef.current) {
       meOverlayRef.current.setPosition(pos)
@@ -258,7 +257,7 @@ export default function VenueMap({ center, me, playerAvatarUrl, markers, activeI
       zIndex: 200,
       icon,
     })
-  }, [useNaver, me.lat, me.lng, playerAvatarUrl])
+  }, [useNaver, me.lat, me.lng])
 
   /* 체육관을 고르면 팝업이 오른쪽을 덮으므로 마커를 왼쪽 28% 지점으로 옮긴다. */
   useEffect(() => {
@@ -363,9 +362,10 @@ export default function VenueMap({ center, me, playerAvatarUrl, markers, activeI
         if (!p || p.x < -80 || p.y < -120 || p.x > size.w + 80 || p.y > size.h + 80) return null
         const on = activeId === m.id
         return (
-          <div
+          <button
+            type="button"
             key={m.id}
-            className={`mk marker${on ? ' on' : ''}${m.discovered ? '' : ' is-undiscovered'}${m.boss ? ' is-boss' : ''}`}
+            className={`mk marker${on ? ' on' : ''}${m.boss ? ' is-boss' : ''}`}
             style={{
               left: p.x, top: p.y, color: m.color,
               ['--tier' as string]: m.tierColor,
@@ -384,15 +384,15 @@ export default function VenueMap({ center, me, playerAvatarUrl, markers, activeI
               {m.boss && <span className="marker-game-badge">🏸 BOSS</span>}
             </div>
             <div className="marker-tip">{m.label}</div>
-          </div>
+          </button>
         )
       })}
 
-      {/* 내 위치 — 내장 맵에서만. 네이버에서는 오버레이로 올린다. */}
+      {/* 내 위치 — 캐릭터를 세우지 않고 위치 핀/펄스만 남긴다. */}
       {!useNaver && mePos && (
-        <div className="me-character" style={{ left: mePos.x, top: mePos.y, zIndex: 20 }}>
-          <span />
-          <img src={playerAvatarUrl || '/map/player-dino.webp'} alt="" />
+        <div className="me-location" style={{ left: mePos.x, top: mePos.y, zIndex: 20 }} aria-label="내 위치">
+          <span className="player-location-pulse" />
+          <span className="player-location-core" />
         </div>
       )}
 

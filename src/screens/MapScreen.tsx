@@ -150,7 +150,6 @@ export default function MapScreen() {
       <VenueMap
         center={HOME}
         me={mapPosition}
-        playerAvatarUrl={me.avatarUrl}
         markers={markers}
         activeId={activeId}
         onMarkerClick={selectVenue}

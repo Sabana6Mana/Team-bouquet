@@ -33,8 +33,6 @@ export interface MapMarker {
 export interface VenueMapProps {
   center: LatLng
   me: LatLng
-  /** 온보딩에서 선택한 내 캐릭터. 없으면 기본 공룡으로 표시한다. */
-  playerAvatarUrl?: string | null
   markers: MapMarker[]
   activeId: string | null
   onMarkerClick: (id: string) => void
