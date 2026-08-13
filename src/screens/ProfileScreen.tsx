@@ -4,6 +4,7 @@ import { CLANS, VENUES } from '../data/seed'
 import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { HONOR_GRADES, HONOR_TYPES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
+import PlayerAvatar from '../components/PlayerAvatar'
 import { useBackend } from '../context/BackendProvider'
 
 const HONOR_SHORT_LABEL = {
@@ -43,9 +44,7 @@ export default function ProfileScreen() {
           style={{ gap: 14, borderColor: `${bestTier.color}44`, background: `linear-gradient(160deg, ${bestTier.color}16, transparent)` }}
         >
           <div className="row" style={{ gap: 14 }}>
-            <div className="avatar lg" style={{ borderColor: `${bestTier.color}66`, overflow: 'hidden' }}>
-              {me.avatarUrl ? <img src={me.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : me.avatar}
-            </div>
+            <PlayerAvatar player={me} className="avatar lg" style={{ borderColor: `${bestTier.color}66`, overflow: 'hidden' }} />
             <div className="stack grow" style={{ gap: 6 }}>
               <strong style={{ fontSize: 20 }}>{me.nickname}</strong>
               {me.title && <span className="profile-title">《{me.title}》</span>}

@@ -10,6 +10,7 @@ import {
 } from '../lib/game'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
+import PlayerAvatar from '../components/PlayerAvatar'
 import {
   INTRO_CAST_MS, INTRO_HERO_MS, INTRO_SETTLE_MS, INTRO_TAIL_MS,
 } from '../lib/matchIntro'
@@ -81,8 +82,7 @@ function ArenaPlayer({
       style={{ animationDelay: `${delay}ms` }}
     >
       {says && <span className="arena-bubble fade-in">{says}</span>}
-      {/* 아바타는 도트 그래픽이 준비될 때까지 이모지로 대신한다. */}
-      <span className="arena-player__avatar" aria-hidden="true">{player.avatar}</span>
+      <PlayerAvatar player={player} className="arena-player__avatar" aria-hidden="true" />
       <span className="arena-player__name">{player.isMe ? '나' : player.nickname}</span>
     </div>
   )
@@ -109,8 +109,7 @@ function StagePlayer({
       <span className="stage-player__pad" aria-hidden="true" />
       {/* 불길은 아바타보다 뒤에 깔려 후광처럼 보인다. */}
       {ablaze && <span className="stage-player__blaze" aria-hidden="true" />}
-      {/* 아바타는 도트 그래픽이 준비될 때까지 이모지로 대신한다. */}
-      <span className="stage-player__body" aria-hidden="true">{player.avatar}</span>
+      <PlayerAvatar player={player} className="stage-player__body" aria-hidden="true" />
     </>
   )
 
@@ -163,7 +162,7 @@ function PlayerProfile({
       {onClose && (
         <button className="wide-pop__close" onClick={onClose} aria-label="닫기">✕</button>
       )}
-      {!inline && <span className="wide-pop__face" aria-hidden="true">{player.avatar}</span>}
+      {!inline && <PlayerAvatar player={player} className="wide-pop__face" aria-hidden="true" />}
       <strong className="wide-pop__name">{player.isMe ? `${player.nickname} (나)` : player.nickname}</strong>
       <span className="wide-pop__tier mono" style={{ color: tier.color }}>
         {tier.name} · {elo} ELO
@@ -358,7 +357,13 @@ export default function RoomScreen() {
             <span className="mono" style={{ fontSize: compact ? 12 : 14, fontWeight: 800 }}>{l.date}</span>
             {!compact && (
               <span style={{ fontSize: 9, opacity: 0.85 }}>
-                {voters.length > 0 ? voters.map((v) => v.avatar).join('') : `${openCount}칸`}
+                {voters.length > 0 ? (
+                  <span className="row" style={{ gap: 1 }}>
+                    {voters.slice(0, 3).map((v) => (
+                      <PlayerAvatar key={v.id} player={v} style={{ width: 14, height: 14 }} />
+                    ))}
+                  </span>
+                ) : `${openCount}칸`}
               </span>
             )}
           </button>
@@ -429,7 +434,11 @@ export default function RoomScreen() {
         ) : state === 'booked' ? (
           <span style={{ fontSize: 9, color: 'var(--dim)' }}>예약됨</span>
         ) : voters.length > 0 ? (
-          <span style={{ fontSize: 11 }}>{voters.map((v) => v.avatar).join('')}</span>
+          <span className="row" style={{ gap: 1 }}>
+            {voters.slice(0, 3).map((v) => (
+              <PlayerAvatar key={v.id} player={v} style={{ width: 14, height: 14 }} />
+            ))}
+          </span>
         ) : (
           <span style={{ fontSize: 9, color: 'var(--dim)' }}>가능</span>
         )}
@@ -453,7 +462,7 @@ export default function RoomScreen() {
         const p = match.players.find((x) => x.id === c.playerId)
         return (
           <div key={c.id} className="row fade-in" style={{ gap: 8, flexDirection: mine ? 'row-reverse' : 'row', alignItems: 'flex-end' }}>
-            {!mine && <span className="avatar sm">{p?.avatar}</span>}
+            {!mine && <PlayerAvatar player={p} className="avatar sm" />}
             <div className="stack" style={{ gap: 3, alignItems: mine ? 'flex-end' : 'flex-start', maxWidth: '74%' }}>
               {!mine && <span className="small" style={{ fontSize: 10 }}>{p?.nickname}</span>}
               <div

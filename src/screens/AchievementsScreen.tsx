@@ -1,5 +1,5 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { RARITY_META, localAchievementProgress } from '../data/achievements'
 import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SeasonQuestPanel } from '../components/gameplay/GameplayWidgets'
@@ -11,6 +11,7 @@ type Filter = 'all' | 'unlocked' | 'locked'
 
 export default function AchievementsScreen() {
   const nav = useNavigate()
+  const location = useLocation()
   const backend = useBackend()
   const me = useApp((state) => state.me)
   const history = useApp((state) => state.history)
@@ -33,6 +34,17 @@ export default function AchievementsScreen() {
     if (filter === 'locked') return !achievement.unlockedAt
     return true
   }), [achievements, filter])
+
+  useEffect(() => {
+    if (location.hash !== '#season-quests') return
+    const target = document.getElementById('season-quests')
+    if (!target) return
+    const frame = requestAnimationFrame(() => {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [location.hash])
 
   const equip = async (code: string | null) => {
     setBusy(code ?? 'none')
@@ -66,7 +78,9 @@ export default function AchievementsScreen() {
             )}
           </section>
 
-          <SeasonQuestPanel gameplay={gameplay} />
+          <section id="season-quests" tabIndex={-1} aria-label="시즌 퀘스트">
+            <SeasonQuestPanel gameplay={gameplay} />
+          </section>
 
           <div className="achievement-progress-summary">
             <i style={{ width: `${achievements.length ? (unlockedCount / achievements.length) * 100 : 0}%` }} />

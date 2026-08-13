@@ -518,6 +518,41 @@ export type Database = {
         Update: never
         Relationships: []
       }
+      boss_challenges: {
+        Row: {
+          id: string
+          event_id: string
+          profile_id: string
+          status: 'active' | 'won' | 'lost' | 'abandoned'
+          challenger_rating: number
+          boss_rating: number
+          score: string | null
+          started_at: string
+          resolved_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          event_id: string
+          profile_id: string
+          status?: 'active' | 'won' | 'lost' | 'abandoned'
+          challenger_rating: number
+          boss_rating: number
+          score?: string | null
+          started_at?: string
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          status?: 'active' | 'won' | 'lost' | 'abandoned'
+          score?: string | null
+          resolved_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       achievement_definitions: {
         Row: {
           code: string
@@ -709,6 +744,18 @@ export type Database = {
       get_my_match_gameplay_outcome: {
         Args: {
           p_match_id: string
+        }
+        Returns: Json
+      }
+      start_my_boss_challenge: {
+        Args: {
+          p_event_id: string
+        }
+        Returns: Json
+      }
+      resolve_my_boss_challenge: {
+        Args: {
+          p_challenge_id: string
         }
         Returns: Json
       }

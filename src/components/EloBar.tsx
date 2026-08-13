@@ -14,8 +14,8 @@ type Tone = 'base' | 'hot' | 'cold'
 
 /**
  * 경기 결과에 따라 ELO 막대가 움직이는 연출.
- * 승리: 붉게 달아오르며 떨리다가 파바박 차오른 뒤 초록으로 돌아온다.
- * 패배: 푸르게 식으며 오르는 척하다 부들부들 떨린 뒤 확 떨어지고 초록으로 돌아온다.
+ * 승리: 푸르게 빛나며 떨리다가 파바박 차오른 뒤 초록으로 돌아온다.
+ * 패배: 붉게 경고하며 오르는 척하다 부들부들 떨린 뒤 확 떨어지고 초록으로 돌아온다.
  */
 export default function EloBar({ before, after, won, onFinish }: Props) {
   const tier = tierOf(after)
@@ -53,7 +53,7 @@ export default function EloBar({ before, after, won, onFinish }: Props) {
       at(() => setTone('base'), 2750)                            // 초록으로 복귀
       at(() => onFinish?.(), 3300)
     } else {
-      at(() => { setTone('cold'); setMotion('shake-s') }, 700)   // 푸르게 식으며
+      at(() => { setTone('cold'); setMotion('shake-s') }, 700)   // 붉게 경고하며
       at(() => setPct(Math.min(100, beforePct + 4)), 1000)       // 오르는 척
       at(() => setMotion('shake-l'), 1600)                       // 부들부들
 
@@ -70,10 +70,10 @@ export default function EloBar({ before, after, won, onFinish }: Props) {
     return () => { timers.current.forEach(clearTimeout); timers.current = [] }
   }, [])
 
-  const toneColor = tone === 'hot' ? '#d3372b' : tone === 'cold' ? '#2f6fd0' : 'var(--court)'
+  const toneColor = tone === 'hot' ? '#2f6fd0' : tone === 'cold' ? '#d3372b' : 'var(--court)'
   const toneGlow =
-    tone === 'hot' ? 'rgba(211,55,43,0.5)'
-    : tone === 'cold' ? 'rgba(47,111,208,0.5)'
+    tone === 'hot' ? 'rgba(47,111,208,0.5)'
+    : tone === 'cold' ? 'rgba(211,55,43,0.5)'
     : 'rgba(47,125,70,0.35)'
 
   return (

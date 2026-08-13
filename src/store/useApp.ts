@@ -93,7 +93,7 @@ interface AppState {
   /** 명예 저장과 경기 완료 RPC가 경합하지 않도록 완료 버튼을 잠근다. */
   honorSubmitting: boolean
 
-  signUp: (a: Omit<Account, 'interests'>) => void
+  signUp: (a: Omit<Account, 'interests'>, avatarUrl?: string | null) => void
   setInterests: (ids: SportId[]) => void
   setCoords: (c: { lat: number; lng: number }) => void
 
@@ -120,6 +120,8 @@ interface AppState {
   giveHonor: (playerId: string, honorType: HonorType) => void
   finishMatch: () => void
   openReporting: () => void
+  /** 데모 보스전 승리만 기록한다. 일반 경기 기록/ELO와 완전히 분리된다. */
+  recordBossVictory: () => void
 
   notify: (title: string, body: string, link?: string) => void
   dismissToast: () => void
@@ -149,11 +151,12 @@ export const useApp = create<AppState>()(
       testMatch: false,
       honorSubmitting: false,
 
-      signUp: (a) => {
+      signUp: (a, avatarUrl) => {
         const me: Player = {
           ...emptyMe(),
           nickname: a.nickname,
           avatar: '🦖',
+          avatarUrl: avatarUrl ?? null,
         }
         set({ account: { ...a, interests: [] }, me })
       },
@@ -827,6 +830,18 @@ export const useApp = create<AppState>()(
           set({ backendError: message })
           get().notify('결과 입력 시작 실패', message)
         })
+      },
+
+      recordBossVictory: () => {
+        if (serverMode()) return
+        const me = get().me
+        if ((me.bossVictories ?? 0) > 0) return
+        set({ me: { ...me, bossVictories: 1 } })
+        get().notify(
+          '배드민턴 보스 격파! 🏸',
+          '《보스의 천적》 칭호를 획득했습니다. 도전과제에서 장착해 보세요.',
+          '/achievements',
+        )
       },
 
       /* ─────────────── 알림 ─────────────── */

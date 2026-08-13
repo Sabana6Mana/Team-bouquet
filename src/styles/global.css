@@ -298,15 +298,25 @@ a { color: inherit; text-decoration: none; }
 
 .venue-entity {
   position: relative;
-  width: 142px;
-  height: 138px;
+  width: 96px;
+  height: 112px;
+  min-width: 44px;
+  min-height: 44px;
   margin: 0;
   padding: 0;
   overflow: visible;
+  border: 0;
+  background: transparent;
   color: var(--venue-color, var(--court));
   cursor: pointer;
+  touch-action: manipulation;
   user-select: none;
   -webkit-user-drag: none;
+}
+.venue-entity:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--venue-color, var(--court)) 72%, #ffffff);
+  outline-offset: -8px;
+  border-radius: 24px;
 }
 /* 거점의 빛기둥과 바닥 원은 three.js 3D 레이어가 그린다. */
 .venue-building {
@@ -340,40 +350,32 @@ a { color: inherit; text-decoration: none; }
   line-height: 1;
   pointer-events: none;
 }
-.venue-crown {
-  position: absolute;
-  left: 50%;
-  top: 1px;
-  z-index: 3;
-  transform: translateX(-50%) translateY(6px) scale(0.72);
-  opacity: 0;
-  color: #f8b913;
-  font-size: 31px;
-  line-height: 1;
-  text-shadow: 0 2px 0 #fff3ae, 0 0 13px rgba(248, 185, 19, 0.78);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: none;
-}
+.venue-sport-badge[hidden] { display: none; }
 .venue-game-status {
   position: absolute;
-  left: 12px;
+  left: 7px;
   top: 18px;
   z-index: 4;
-  display: grid;
-  min-width: 27px;
-  height: 27px;
-  padding: 0 6px;
+  display: none;
+  min-width: 76px;
+  height: 26px;
+  padding: 0 9px;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.92);
   border-radius: 999px;
   color: #ffffff;
   background: rgba(45, 57, 52, 0.84);
   box-shadow: 0 4px 12px rgba(19, 32, 27, 0.28);
-  font-size: 15px;
+  font-size: 10.5px;
+  font-weight: 950;
+  letter-spacing: 0.35px;
   line-height: 1;
+  white-space: nowrap;
   pointer-events: none;
 }
-.venue-entity.is-boss .venue-game-status {
+.venue-game-status[hidden] { display: none; }
+.venue-entity.is-boss .venue-game-status:not([hidden]) {
+  display: grid;
   background: linear-gradient(145deg, #7c3aed, #f97316);
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18), 0 0 18px rgba(168, 85, 247, 0.7);
   animation: bossPulse 1.8s ease-in-out infinite;
@@ -432,69 +434,40 @@ a { color: inherit; text-decoration: none; }
   filter: drop-shadow(0 11px 9px rgba(43, 64, 52, 0.34)) drop-shadow(0 0 10px currentColor);
 }
 .venue-entity.is-selected .venue-label { opacity: 1; transform: translateX(0) scale(1); }
-.venue-entity.is-throne .venue-crown { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
-.venue-entity.is-undiscovered:not(.is-selected):not(.is-boss) { filter: grayscale(0.88); opacity: 0.67; }
-.venue-entity.is-undiscovered .venue-sport-badge {
-  color: #eff5f2;
-  background: #6f7d76;
-  box-shadow: 0 2px 9px rgba(31, 50, 40, 0.22);
-}
-.venue-entity.is-hot:not(.is-selected)::after {
-  content: '●';
-  position: absolute;
-  right: 16px;
-  top: 29px;
-  color: #ff7d45;
-  font-size: 10px;
-  text-shadow: 0 0 9px #ff6b39;
-}
-.player-map-marker {
+.player-location-marker,
+.nme-location,
+.me-location {
   position: relative;
-  width: 104px;
-  height: 112px;
+  width: 48px;
+  height: 48px;
   pointer-events: none;
 }
-.player-platform {
+.me-location {
   position: absolute;
-  left: 50%;
-  bottom: 4px;
-  width: 86px;
-  height: 42px;
-  transform: translateX(-50%);
-  border: 2px solid #39e4f2;
+  transform: translate(-50%, -50%);
+}
+.player-location-pulse {
+  position: absolute;
+  inset: 3px;
+  border: 2px solid rgba(19, 189, 228, 0.9);
   border-radius: 50%;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.88) 0 7%, transparent 8%),
-    repeating-conic-gradient(from 8deg, rgba(87, 237, 255, 0.94) 0 5deg, transparent 5deg 43deg),
-    rgba(34, 210, 238, 0.17);
-  box-shadow: 0 0 0 7px rgba(52, 224, 244, 0.13), 0 0 24px rgba(30, 210, 242, 0.75);
-  animation: playerPulse 2.2s ease-in-out infinite;
+  background: rgba(57, 228, 242, 0.16);
+  box-shadow: 0 0 18px rgba(30, 210, 242, 0.65);
+  animation: locationPulse 1.9s ease-out infinite;
 }
-.player-direction {
+.player-location-core {
   position: absolute;
-  left: 50%;
-  bottom: -8px;
-  width: 0;
-  height: 0;
-  transform: translateX(-50%);
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-top: 11px solid #39e4f2;
-  filter: drop-shadow(0 0 5px #39e4f2);
+  left: 50%; top: 50%;
+  width: 18px; height: 18px;
+  transform: translate(-50%, -50%);
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+  background: #18bfe7;
+  box-shadow: 0 3px 10px rgba(10, 95, 128, 0.36), 0 0 0 2px rgba(24, 191, 231, 0.28);
 }
-.player-dino {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  width: 88px;
-  height: 88px;
-  object-fit: contain;
-  transform: translateX(-50%);
-  filter: drop-shadow(0 8px 5px rgba(21, 75, 43, 0.34));
-}
-@keyframes playerPulse {
-  0%, 100% { transform: translateX(-50%) scale(0.94); opacity: 0.84; }
-  50% { transform: translateX(-50%) scale(1.05); opacity: 1; }
+@keyframes locationPulse {
+  0% { transform: scale(0.42); opacity: 0.96; }
+  75%, 100% { transform: scale(1.08); opacity: 0; }
 }
 
 .map-location-control {
@@ -614,17 +587,24 @@ a { color: inherit; text-decoration: none; }
 @media (max-height: 720px) {
   .venue-entity { transform-origin: bottom; }
   .venue-building { width: 116px; height: 116px; }
-  .venue-entity { width: 126px; height: 124px; }
+  .venue-entity { width: 88px; height: 104px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .player-platform { animation: none; }
+  .player-location-pulse { animation: none; opacity: 0.72; }
 }
 
 /* 마커 공통 모양. 내장 맵과 네이버 오버레이가 이 스타일을 함께 쓴다. */
 .mk {
   display: flex; flex-direction: column; align-items: center;
+  min-width: 44px; min-height: 44px;
+  margin: 0; padding: 0; border: 0; background: transparent;
   cursor: pointer;
+}
+.mk:focus-visible { outline: none; }
+.mk:focus-visible .marker-pin {
+  outline: 3px solid currentColor;
+  outline-offset: 4px;
 }
 
 /* 내장 맵: 좌표를 직접 계산해 배치한다. */
@@ -670,6 +650,11 @@ a { color: inherit; text-decoration: none; }
   display: grid; place-items: center;
   font-size: 22px;
   background: linear-gradient(160deg, #ffffff, #f0f7f2);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, currentColor 22%, #ffffff),
+    color-mix(in srgb, currentColor 9%, #eef8f1)
+  );
   border: 2px solid currentColor;
   /* 티어 색 외곽 링 + 밝은 지도와 분리되도록 진한 그림자.
      color-mix를 못 쓰는 브라우저에서 그림자가 통째로 사라지지 않도록 폴백을 먼저 둔다. */
@@ -703,32 +688,31 @@ a { color: inherit; text-decoration: none; }
   animation: flame 1.15s ease-in-out infinite;
   pointer-events: none;
 }
-.marker-game-badge,
-.marker-throne {
+.marker-game-badge {
   position: absolute;
   z-index: 3;
   line-height: 1;
   pointer-events: none;
 }
 .marker-game-badge {
-  left: -12px;
-  top: -13px;
-  font-size: 20px;
-  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.85));
+  left: -16px;
+  top: -29px;
+  display: flex;
+  min-width: 78px;
+  height: 24px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(145deg, #7c3aed, #f97316);
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.18), 0 0 15px rgba(168, 85, 247, 0.68);
+  font-size: 10.5px;
+  font-weight: 950;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
   animation: bossPulse 1.8s ease-in-out infinite;
-}
-.marker-throne {
-  left: 50%;
-  top: -30px;
-  color: #f4b91e;
-  font-size: 25px;
-  text-shadow: 0 1px 0 #fff1a4, 0 0 9px rgba(244, 185, 30, 0.72);
-  transform: translateX(-50%);
-}
-.mk.is-undiscovered:not(.on):not(.is-boss) { filter: grayscale(0.88); opacity: 0.68; }
-.mk.is-undiscovered .marker-pin {
-  color: #69766f;
-  background: linear-gradient(160deg, #f2f5f3, #dfe6e2);
 }
 .mk.is-boss .marker-pin {
   box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.45), 0 0 18px rgba(168, 85, 247, 0.62);
@@ -783,7 +767,6 @@ a { color: inherit; text-decoration: none; }
   border-color: transparent;
 }
 
-/* 네이버 오버레이용 내 위치 표시 (지도와 함께 움직인다) */
 .nme {
   position: relative;
   width: 18px; height: 18px; border-radius: 50%;
@@ -991,6 +974,33 @@ a { color: inherit; text-decoration: none; }
   font-size: 11px;
   font-weight: 900;
 }
+.map-progress-link {
+  min-width: 0;
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.map-progress-link + .map-progress-link {
+  border-top: 1px solid rgba(223, 231, 226, 0.9);
+  border-radius: 0 0 8px 8px;
+}
+.map-progress-link:hover,
+.map-progress-link:focus-visible {
+  background: rgba(46, 125, 70, 0.08);
+}
+.map-progress-link:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--court) 58%, #ffffff);
+  outline-offset: -2px;
+}
+#season-quests {
+  scroll-margin-top: 76px;
+}
+#season-quests:focus { outline: none; }
 .sport-filter-trigger {
   flex: 0 0 62px;
   width: 62px;
@@ -1348,6 +1358,7 @@ a { color: inherit; text-decoration: none; }
 .arena-player__avatar {
   display: grid;
   place-items: center;
+  overflow: hidden;
   width: 3.4em;
   height: 3.4em;
   border-radius: 50%;
@@ -1779,8 +1790,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 .stage-player__body {
+  display: block;
   position: relative;
   z-index: 1;
+  width: var(--figure);
+  height: var(--figure);
   margin-bottom: calc(var(--figure) * 0.06);
   font-size: var(--figure);
   line-height: 1;
@@ -2169,7 +2183,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 14px;
   font-weight: 800;
 }
-.wide-pop__face { font-size: 52px; line-height: 1; }
+.wide-pop__face { display: block; width: 52px; height: 52px; font-size: 52px; line-height: 1; }
 .wide-pop__name { font-size: 15px; }
 .wide-pop__tier { font-size: 12px; font-weight: 800; }
 .wide-pop__stats {
@@ -2434,15 +2448,15 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(90deg, var(--court), var(--court-2));
   transition: width 0.45s cubic-bezier(0.2, 0.8, 0.3, 1), background 0.35s ease, box-shadow 0.35s ease;
 }
-/* 달아오른 상태 — 올라갈 때 */
+/* 승리 상태 — 파랗게 빛나며 올라간다 */
 .elobar.hot > i {
-  background: linear-gradient(90deg, #b02218, #ff7a5c);
-  box-shadow: 0 0 14px rgba(224, 69, 58, 0.85);
-}
-/* 식은 상태 — 떨어지기 직전 */
-.elobar.cold > i {
   background: linear-gradient(90deg, #1e4f9c, #6aa6ee);
   box-shadow: 0 0 14px rgba(47, 111, 208, 0.8);
+}
+/* 패배 상태 — 붉게 경고하며 떨어진다 */
+.elobar.cold > i {
+  background: linear-gradient(90deg, #b02218, #ff7a5c);
+  box-shadow: 0 0 14px rgba(224, 69, 58, 0.85);
 }
 /* 파바박 — 끊어서 차오르므로 각 구간은 즉각 반영한다 */
 .elobar.burst > i { transition: width 0.07s linear; }
@@ -2492,11 +2506,13 @@ a { color: inherit; text-decoration: none; }
 .avatar {
   display: grid; place-items: center;
   width: 40px; height: 40px; border-radius: 12px;
+  overflow: hidden;
   background: var(--surface-2); border: 1px solid var(--line);
   font-size: 20px; flex-shrink: 0;
 }
 .avatar.lg { width: 62px; height: 62px; border-radius: 18px; font-size: 30px; }
 .avatar.sm { width: 32px; height: 32px; border-radius: 10px; font-size: 16px; }
+.player-avatar__image { user-select: none; -webkit-user-drag: none; }
 
 .spinner {
   width: 92px; height: 92px; border-radius: 50%;

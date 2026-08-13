@@ -3,6 +3,7 @@ import type {
   GameplaySeasonQuest,
   GameplaySummary,
 } from '../../data/gameplay'
+import type { SportId } from '../../types'
 
 function percent(value: number, total: number): number {
   if (total <= 0) return 0
@@ -38,31 +39,36 @@ function ProgressBar({
 /** 지도 상단의 비어 있던 보조 칸에 들어가는 한 번 탭 가능한 진행 요약이다. */
 export function MapProgressSummary({
   gameplay,
-  onOpen,
+  onOpenCollection,
+  onOpenSeason,
 }: {
   gameplay: GameplaySummary
-  onOpen?: () => void
+  onOpenCollection?: () => void
+  onOpenSeason?: () => void
 }) {
   const { region, season } = gameplay
   return (
-    <button
-      type="button"
+    <div
       className="local-champion"
-      onClick={onOpen}
-      aria-label={`${region.name} ${region.discovered}/${region.total}, 시즌 퀘스트 ${season.completed}/${season.total}`}
+      role="group"
+      aria-label="지도 게임 진행도"
       style={{
         width: '100%',
         height: '100%',
-        padding: '6px 8px',
+        padding: 0,
         flexDirection: 'column',
         alignItems: 'stretch',
         justifyContent: 'center',
-        gap: 5,
-        cursor: onOpen ? 'pointer' : 'default',
+        gap: 0,
         textAlign: 'left',
       }}
     >
-      <span className="row spread" style={{ gap: 5, minWidth: 0, flexDirection: 'row' }}>
+      <button
+        type="button"
+        className="map-progress-link"
+        onClick={onOpenCollection}
+        aria-label={`${region.name} ${region.discovered}/${region.total} 도감 열기`}
+      >
         <span className="row" style={{ gap: 4, minWidth: 0 }}>
           <span aria-hidden="true">🗺️</span>
           <strong style={{ overflow: 'hidden', fontSize: 10.5, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -72,8 +78,13 @@ export function MapProgressSummary({
         <span className="mono" style={{ color: 'var(--court)', fontSize: 11, fontWeight: 900 }}>
           {region.discovered}/{region.total}
         </span>
-      </span>
-      <span className="row spread" style={{ gap: 5, minWidth: 0, flexDirection: 'row' }}>
+      </button>
+      <button
+        type="button"
+        className="map-progress-link"
+        onClick={onOpenSeason}
+        aria-label={`시즌 퀘스트 ${season.completed}/${season.total} 열기`}
+      >
         <span className="row" style={{ gap: 4, minWidth: 0 }}>
           <span aria-hidden="true">🎯</span>
           <strong style={{ overflow: 'hidden', fontSize: 10.5, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -83,8 +94,8 @@ export function MapProgressSummary({
         <span className="mono" style={{ color: 'var(--purple)', fontSize: 11, fontWeight: 900 }}>
           {season.completed}/{season.total}
         </span>
-      </span>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -92,16 +103,20 @@ export function MapProgressSummary({
 export function VenueGameplayCard({
   venueId,
   gameplay,
+  selectedSport,
   onOpenCollection,
+  onChallengeBoss,
 }: {
   venueId: string
   gameplay: GameplaySummary
+  selectedSport?: SportId
   onOpenCollection?: () => void
+  onChallengeBoss?: () => void
 }) {
   const venue = gameplay.venues.find((item) => item.id === venueId)
   if (!venue) return null
 
-  const isBossVenue = gameplay.boss.venueId === venueId
+  const isBossVenue = gameplay.boss.venueId === venueId && selectedSport === 'badminton'
   const boss = gameplay.boss
   return (
     <section
@@ -138,29 +153,32 @@ export function VenueGameplayCard({
       </div>
 
       {isBossVenue && (
-        <div className="stack" style={{ gap: 6, paddingTop: 8, borderTop: '1px solid rgba(122, 91, 189, 0.18)' }}>
+        <div className="stack" style={{ gap: 8, paddingTop: 8, borderTop: '1px solid rgba(122, 91, 189, 0.18)' }}>
           <div className="row spread" style={{ gap: 8 }}>
             <span className="row" style={{ gap: 5, fontSize: 11.5, fontWeight: 800 }}>
-              <span aria-hidden="true">{boss.icon}</span> {boss.name}
+              <span aria-hidden="true">🏸</span> BOSS · {boss.name}
             </span>
-            <span className="mono" style={{ color: 'var(--purple)', fontSize: 11, fontWeight: 900 }}>
-              HP {boss.remainingHp}/{boss.maxHp}
-            </span>
-          </div>
-          <div className="row" style={{ gap: 8 }}>
-            <ProgressBar
-              value={boss.maxHp - boss.remainingHp}
-              total={boss.maxHp}
-              color="linear-gradient(90deg, var(--purple), #cf6fc8)"
-              label={`${boss.name} 공략 진행도`}
-            />
-            <span className="small" style={{ flexShrink: 0, fontSize: 10 }}>
-              내 기여 {boss.myContribution}
+            <span className="chip" style={{ color: boss.defeated ? 'var(--court)' : 'var(--purple)', fontSize: 10 }}>
+              {boss.defeated ? '격파 완료' : '도전 가능'}
             </span>
           </div>
-          <span className="small" style={{ fontSize: 10 }}>
-            👑 {boss.throne.nickname} · {boss.throne.contribution}타격 · ELO와 별도
-          </span>
+          <div className="row" style={{ gap: 9 }}>
+            <span aria-hidden="true" style={{ fontSize: 25 }}>{boss.opponent.avatar}</span>
+            <div className="stack grow" style={{ gap: 2 }}>
+              <strong style={{ fontSize: 12 }}>{boss.opponent.nickname}</strong>
+              <span className="small" style={{ fontSize: 10 }}>
+                배드민턴 ELO {boss.opponent.rating} · 직접 승리 시 《{boss.rewardTitle}》
+              </span>
+            </div>
+          </div>
+          <p className="small" style={{ margin: 0, fontSize: 10 }}>
+            일반 매칭 결과는 보스전에 반영되지 않습니다. 보스에게 직접 도전해 이겨야 칭호가 열립니다.
+          </p>
+          {onChallengeBoss && (
+            <button type="button" className="btn primary" style={{ height: 36, fontSize: 11.5 }} onClick={onChallengeBoss}>
+              {boss.defeated ? '보스전 결과 보기' : '셔틀콕 가디언에게 도전'}
+            </button>
+          )}
         </div>
       )}
     </section>
@@ -276,14 +294,6 @@ export function MatchGameplayRewards({ outcome }: { outcome: GameplayOutcome | n
       color: 'var(--court)',
     },
   ]
-  if (outcome.bossDamage > 0) {
-    rewards.push({
-      icon: '👾',
-      title: `주간 보스 HP -${outcome.bossDamage}`,
-      body: `남은 HP ${outcome.bossRemainingHp}/${outcome.bossMaxHp}`,
-      color: 'var(--purple)',
-    })
-  }
   if (outcome.unlockedQuests.length > 0) {
     rewards.push({
       icon: '🏷️',
@@ -323,13 +333,15 @@ export function MatchGameplayRewards({ outcome }: { outcome: GameplayOutcome | n
   )
 }
 
-/** ELO 순위표와 섞지 않고 그 위에 독립적으로 두는 주간 기여도 카드다. */
-export function WeeklyThroneCard({
+/** 일반 랭킹과 분리해 보여 주는 배드민턴 전용 직접 대결 보스 카드다. */
+export function WeeklyBossCard({
   gameplay,
   onOpenVenue,
+  onChallenge,
 }: {
   gameplay: GameplaySummary
   onOpenVenue?: (venueId: string) => void
+  onChallenge?: () => void
 }) {
   const { boss } = gameplay
   if (!boss.venueId) {
@@ -337,14 +349,13 @@ export function WeeklyThroneCard({
       <section className="card row" style={{ gap: 12, padding: 16 }}>
         <span aria-hidden="true" style={{ fontSize: 28 }}>👾</span>
         <div className="stack grow" style={{ gap: 4 }}>
-          <span className="label">WEEKLY GYM BOSS</span>
+          <span className="label">BADMINTON BOSS</span>
           <strong>{boss.name}</strong>
           <span className="small">{boss.endsLabel}</span>
         </div>
       </section>
     )
   }
-  const dealt = boss.maxHp - boss.remainingHp
   return (
     <section
       className="card stack"
@@ -357,8 +368,8 @@ export function WeeklyThroneCard({
     >
       <div className="row spread" style={{ gap: 10 }}>
         <div className="stack" style={{ gap: 3, minWidth: 0 }}>
-          <span className="label">WEEKLY GYM BOSS</span>
-          <strong style={{ fontSize: 15 }}>{boss.icon} {boss.name}</strong>
+          <span className="label">BADMINTON BOSS · DIRECT MATCH</span>
+          <strong style={{ fontSize: 15 }}>{boss.icon} {boss.opponent.nickname}</strong>
           <span className="small" style={{ fontSize: 10.5 }}>{boss.venueName} · {boss.endsLabel}</span>
         </div>
         {onOpenVenue && (
@@ -368,36 +379,27 @@ export function WeeklyThroneCard({
         )}
       </div>
 
-      <div className="stack" style={{ gap: 6 }}>
-        <div className="row spread">
-          <span className="small">공동 공략 진행도</span>
-          <span className="mono" style={{ color: 'var(--purple)', fontSize: 12, fontWeight: 900 }}>
-            HP {boss.remainingHp}/{boss.maxHp}
-          </span>
-        </div>
-        <ProgressBar
-          value={dealt}
-          total={boss.maxHp}
-          color="linear-gradient(90deg, var(--purple), #d19a31)"
-          label={`${boss.name} 공동 공략 진행도`}
-        />
-      </div>
-
       <div
         className="row"
         style={{ gap: 11, padding: 11, borderRadius: 13, background: 'rgba(255,255,255,0.68)', border: '1px solid rgba(184,134,11,0.22)' }}
       >
-        <span aria-hidden="true" style={{ fontSize: 28 }}>👑</span>
-        <span aria-hidden="true" style={{ fontSize: 22 }}>{boss.throne.avatar}</span>
+        <span aria-hidden="true" style={{ fontSize: 30 }}>{boss.opponent.avatar}</span>
         <div className="stack grow" style={{ gap: 2 }}>
-          <strong style={{ fontSize: 13 }}>{boss.throne.nickname}{boss.throne.isMe ? ' (나)' : ''}</strong>
-          <span className="small" style={{ fontSize: 10.5 }}>이번 주 왕좌 · {boss.throne.contribution}타격</span>
+          <strong style={{ fontSize: 13 }}>{boss.opponent.nickname}</strong>
+          <span className="small" style={{ fontSize: 10.5 }}>배드민턴 1v1 · ELO {boss.opponent.rating}</span>
         </div>
-        <span className="chip" style={{ color: 'var(--purple)' }}>내 기여 {boss.myContribution}</span>
+        <span className="chip" style={{ color: boss.defeated ? 'var(--court)' : 'var(--purple)' }}>
+          {boss.defeated ? '격파 완료' : '도전 가능'}
+        </span>
       </div>
       <span className="small" style={{ fontSize: 10, textAlign: 'center' }}>
-        경기 기여도 순위이며 매칭 범위·ELO·승패 판정에는 영향을 주지 않습니다.
+        일반 경기는 보스 진행도에 포함되지 않습니다. 직접 대결 승리 시 《{boss.rewardTitle}》 획득 · ELO 변동 없음
       </span>
+      {onChallenge && (
+        <button type="button" className="btn primary" onClick={onChallenge}>
+          {boss.defeated ? '보스전 결과 보기' : '보스에게 도전하기'}
+        </button>
+      )}
     </section>
   )
 }

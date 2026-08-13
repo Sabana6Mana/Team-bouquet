@@ -11,6 +11,7 @@ import { useBackend } from '../context/BackendProvider'
 import { useApp } from '../store/useApp'
 import { VenueGameplayCard } from './gameplay/GameplayWidgets'
 import { activeMatchPath } from './ui'
+import PlayerAvatar from './PlayerAvatar'
 
 /** 지도 위에 뜨는 체육관 상세 팝업. 마커는 왼쪽, 팝업은 오른쪽. */
 export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: () => void }) {
@@ -84,7 +85,9 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
         <VenueGameplayCard
           venueId={venue.id}
           gameplay={gameplay}
+          selectedSport={sport}
           onOpenCollection={() => nav('/collection')}
+          onChallengeBoss={() => nav('/boss')}
         />
 
         {/* 전광판 */}
@@ -107,7 +110,7 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
                   <div className="lb-row" key={p.id} style={{ padding: '7px 10px' }}>
                     <span className={`rank${i < 3 ? ` g${i + 1}` : ''}`}>{i + 1}</span>
                     <div className="row grow" style={{ gap: 6, minWidth: 0 }}>
-                      <span style={{ fontSize: 13 }}>{p.avatar}</span>
+                      <PlayerAvatar player={p} style={{ width: 23, height: 23, flexShrink: 0 }} />
                       <span
                         style={{
                           fontSize: 11.5, fontWeight: 600,

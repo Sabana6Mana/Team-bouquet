@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { SPORT_LIST } from '../lib/game'
 import { StepDots } from '../components/ui'
+import PlayerAvatar from '../components/PlayerAvatar'
+import { CHARACTERS, DEFAULT_CHARACTER, characterById, type CharacterId } from '../data/characters'
 import type { SportId } from '../types'
 import { useBackend } from '../context/BackendProvider'
 
@@ -25,7 +27,9 @@ export default function Onboarding() {
   const [code, setCode] = useState('')
   const [sent, setSent] = useState(false)
   const [nickname, setNickname] = useState('')
+  const [characterId, setCharacterId] = useState<CharacterId>(DEFAULT_CHARACTER.id)
   const [picked, setPicked] = useState<SportId[]>([])
+  const character = characterById(characterId)
 
   const canVerify = name.trim() && birth.length >= 6 && phone.length >= 10 && (!sent || code.length === 6)
 
@@ -128,10 +132,53 @@ export default function Onboarding() {
                 setError(null)
               }}
             />
+            <div className="stack" style={{ gap: 9 }}>
+              <span className="label">캐릭터 선택</span>
+              <div
+                role="radiogroup"
+                aria-label="플레이어 캐릭터"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9 }}
+              >
+                {CHARACTERS.map((option) => {
+                  const selected = option.id === characterId
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setCharacterId(option.id)}
+                      className="card stack"
+                      style={{
+                        minWidth: 0,
+                        gap: 7,
+                        alignItems: 'center',
+                        padding: 11,
+                        borderColor: selected ? 'var(--cyan)' : 'var(--line)',
+                        background: selected ? 'rgba(47, 125, 70, 0.10)' : 'var(--surface)',
+                      }}
+                    >
+                      <PlayerAvatar
+                        className="avatar lg"
+                        avatarUrl={option.avatarUrl}
+                        fallback={option.fallback}
+                        aria-hidden="true"
+                      />
+                      <strong style={{ fontSize: 12 }}>{option.label}</strong>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div className="card stack" style={{ gap: 12 }}>
               <span className="label">미리보기</span>
               <div className="row" style={{ gap: 12 }}>
-                <div className="avatar lg">🦖</div>
+                <PlayerAvatar
+                  className="avatar lg"
+                  avatarUrl={character.avatarUrl}
+                  fallback={character.fallback}
+                  aria-hidden="true"
+                />
                 <div className="stack" style={{ gap: 4 }}>
                   <strong style={{ fontSize: 17 }}>{nickname || '플레이어'}</strong>
                   <span className="small mono" style={{ color: 'var(--gold)' }}>ELO 1200 · 배치 대기</span>
@@ -157,7 +204,7 @@ export default function Onboarding() {
                       carrier: backend.enabled ? '' : carrier,
                       phone: backend.enabled ? '' : phone,
                       nickname: nickname.trim(),
-                    })
+                    }, character.avatarUrl)
                     setStep(2)
                   } catch (caught) {
                     setError(caught instanceof Error ? caught.message : '닉네임 확인에 실패했습니다.')
@@ -214,7 +261,9 @@ export default function Onboarding() {
                   setSaving(true)
                   setError(null)
                   try {
-                    if (backend.enabled) await backend.saveProfile(nickname.trim(), picked)
+                    if (backend.enabled) {
+                      await backend.saveProfile(nickname.trim(), picked, character.avatarUrl)
+                    }
                     setInterests(picked)
                     nav('/', { replace: true })
                   } catch (caught) {

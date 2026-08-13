@@ -11,6 +11,8 @@ import {
 import type { Json, TableInsert, TableRow } from './database.types'
 import type { HonorType } from '../types'
 import {
+  type BossChallengeResult,
+  type BossChallengeStatus,
   type GameplayOutcome,
   type GameplaySeasonQuest,
   type GameplaySummary,
@@ -123,6 +125,33 @@ function gameplayEndsLabel(value: string | undefined): string {
 }
 
 const SEASON_QUEST_CODES = new Set<SeasonQuestCode>(['first_match', 'venues_3', 'boss_raider'])
+const BOSS_CHALLENGE_STATUSES = new Set<BossChallengeStatus>(['active', 'won', 'lost', 'abandoned'])
+
+function bossChallengeFromJson(raw: Json): BossChallengeResult {
+  const value = jsonObject(raw)
+  if (!value) throw new Error('보스전 결과 형식이 올바르지 않습니다.')
+  const statusValue = jsonString(jsonField(value, 'status'))
+  if (!statusValue || !BOSS_CHALLENGE_STATUSES.has(statusValue as BossChallengeStatus) || statusValue === 'none') {
+    throw new Error('보스전 상태를 확인할 수 없습니다.')
+  }
+  const sport = jsonString(jsonField(value, 'sport'))
+  if (sport !== 'badminton') throw new Error('배드민턴 보스전만 지원합니다.')
+  return {
+    challengeId: jsonString(jsonField(value, 'challenge_id', 'challengeId')) ?? '',
+    eventId: jsonString(jsonField(value, 'event_id', 'eventId')) ?? '',
+    venueId: jsonString(jsonField(value, 'venue_id', 'venueId')) ?? '',
+    sport,
+    bossName: jsonString(jsonField(value, 'boss_name', 'bossName')) ?? '셔틀콕 가디언',
+    bossAvatarUrl: jsonString(jsonField(value, 'boss_avatar_url', 'bossAvatarUrl')) ?? null,
+    bossRating: jsonNumber(jsonField(value, 'boss_rating', 'bossRating')) ?? 1350,
+    status: statusValue as BossChallengeResult['status'],
+    won: jsonBoolean(jsonField(value, 'won')) ?? null,
+    score: jsonString(jsonField(value, 'score')) ?? null,
+    titleCode: jsonString(jsonField(value, 'title_code', 'titleCode')) === 'boss_raider' ? 'boss_raider' : null,
+    titleUnlocked: jsonBoolean(jsonField(value, 'title_unlocked', 'titleUnlocked')) ?? false,
+    newlyUnlocked: jsonBoolean(jsonField(value, 'newly_unlocked', 'newlyUnlocked')) ?? false,
+  }
+}
 
 function gameplaySummaryFromJson(raw: Json): GameplaySummary | null {
   const root = jsonObject(raw)
@@ -160,11 +189,12 @@ function gameplaySummaryFromJson(raw: Json): GameplaySummary | null {
 
   const bossVenueId = jsonString(jsonField(bossRaw, 'venue_id', 'venueId')) ?? ''
   const bossVenue = VENUES.find((venue) => venue.id === bossVenueId)
-  const maxHp = jsonNumber(jsonField(bossRaw, 'max_hp', 'maxHp')) ?? 0
-  const remainingHp = jsonNumber(jsonField(bossRaw, 'remaining_hp', 'remainingHp')) ?? maxHp
-  const myContribution = jsonNumber(jsonField(bossRaw, 'my_contribution', 'myContribution')) ?? 0
-  const thronePoints = jsonNumber(jsonField(bossRaw, 'throne_points', 'thronePoints')) ?? 0
   const endsAt = jsonString(jsonField(bossRaw, 'ends_at', 'endsAt'))
+  const rawChallengeStatus = jsonString(jsonField(bossRaw, 'challenge_status', 'challengeStatus'))
+  const challengeStatus: BossChallengeStatus = rawChallengeStatus
+    && BOSS_CHALLENGE_STATUSES.has(rawChallengeStatus as BossChallengeStatus)
+    ? rawChallengeStatus as BossChallengeStatus
+    : 'none'
 
   const quests: GameplaySeasonQuest[] = jsonArray(jsonField(seasonRaw, 'quests'))
     .map((value) => jsonObject(value))
@@ -198,23 +228,25 @@ function gameplaySummaryFromJson(raw: Json): GameplaySummary | null {
     },
     venues,
     boss: bossRaw ? {
+      eventId: jsonString(jsonField(bossRaw, 'event_id', 'eventId')) ?? '',
       venueId: bossVenueId,
-      venueName: bossVenue?.name ?? '주간 보스 체육관',
-      name: '주간 코트 가디언',
+      venueName: bossVenue?.name ?? '배드민턴 보스 체육관',
+      name: '배드민턴 주간 보스',
       icon: '👾',
-      maxHp,
-      remainingHp,
-      startingDamage: Math.max(0, maxHp - remainingHp - myContribution),
-      totalDamage: Math.max(0, maxHp - remainingHp),
-      myContribution,
-      defeated: jsonBoolean(jsonField(bossRaw, 'defeated')) ?? remainingHp <= 0,
-      endsLabel: gameplayEndsLabel(endsAt),
-      throne: {
-        nickname: jsonString(jsonField(bossRaw, 'throne_name', 'throneName')) ?? '도전자 모집 중',
+      sport: 'badminton',
+      opponent: {
+        nickname: jsonString(jsonField(bossRaw, 'boss_name', 'bossName')) ?? '셔틀콕 가디언',
         avatar: '🐲',
-        contribution: thronePoints,
-        isMe: false,
+        avatarUrl: jsonString(jsonField(bossRaw, 'boss_avatar_url', 'bossAvatarUrl')) ?? null,
+        rating: jsonNumber(jsonField(bossRaw, 'boss_rating', 'bossRating')) ?? 1350,
       },
+      challengeId: jsonString(jsonField(bossRaw, 'challenge_id', 'challengeId')) ?? null,
+      challengeStatus,
+      canChallenge: jsonBoolean(jsonField(bossRaw, 'can_challenge', 'canChallenge')) ?? false,
+      titleUnlocked: jsonBoolean(jsonField(bossRaw, 'title_unlocked', 'titleUnlocked')) ?? false,
+      rewardTitle: '보스의 천적',
+      defeated: jsonBoolean(jsonField(bossRaw, 'defeated')) ?? challengeStatus === 'won',
+      endsLabel: gameplayEndsLabel(endsAt),
     } : unavailable.boss,
     season: seasonRaw ? {
       id: jsonString(jsonField(seasonRaw, 'code', 'id')) ?? 'gangnam-expedition-1',
@@ -439,6 +471,22 @@ export const gameplayApi = {
     return gameplaySummaryFromJson(data ?? null)
   },
 
+  async startBossChallenge(eventId: string): Promise<BossChallengeResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('start_my_boss_challenge', { p_event_id: eventId })
+    if (error) fail('보스전 시작 실패', error)
+    return bossChallengeFromJson(data ?? null)
+  },
+
+  async resolveBossChallenge(challengeId: string): Promise<BossChallengeResult> {
+    const client = requireSupabase()
+    await requireUser()
+    const { data, error } = await client.rpc('resolve_my_boss_challenge', { p_challenge_id: challengeId })
+    if (error) fail('보스전 결과 확인 실패', error)
+    return bossChallengeFromJson(data ?? null)
+  },
+
   async getMatchOutcome(
     matchId: string,
     summary: GameplaySummary | null,
@@ -478,10 +526,6 @@ export const gameplayApi = {
         ?? summary?.region.discovered ?? 0,
       totalVenues: jsonNumber(jsonField(value, 'collection_total', 'collectionTotal'))
         ?? summary?.region.total ?? VENUES.length,
-      bossDamage: jsonNumber(jsonField(value, 'boss_damage', 'bossDamage')) ?? 0,
-      bossRemainingHp: jsonNumber(jsonField(value, 'boss_remaining_hp', 'bossRemainingHp'))
-        ?? summary?.boss.remainingHp ?? 0,
-      bossMaxHp: summary?.boss.maxHp ?? 10,
       seasonCompleted: summary?.season.completed ?? 0,
       seasonTotal: summary?.season.total ?? 0,
       unlockedQuests,

@@ -33,10 +33,10 @@ export default function RankTicker() {
 
       {gameplay.boss.venueId && (
         <span className="ticker-item">
-          <span className="ticker-sport">👾 이번 주 보스</span>
+          <span className="ticker-sport">🏸 배드민턴 BOSS</span>
           <span className="ticker-name">{gameplay.boss.venueName}</span>
-          <span className="ticker-elo mono">HP {gameplay.boss.remainingHp}/{gameplay.boss.maxHp}</span>
-          <span className="ticker-crown">👑 {gameplay.boss.throne.nickname}</span>
+          <span className="ticker-elo mono">VS {gameplay.boss.opponent.nickname}</span>
+          <span className="ticker-crown">승리 시 《{gameplay.boss.rewardTitle}》</span>
         </span>
       )}
 

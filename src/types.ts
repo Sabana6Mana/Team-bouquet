@@ -54,6 +54,8 @@ export interface Player {
   streak?: number
   /** 달성한 최고 연승. 도전과제는 패배 뒤에도 이 기록을 유지한다. */
   bestStreak?: number
+  /** 데모 모드의 배드민턴 보스 격파 횟수. 일반 경기와 ELO에는 포함되지 않는다. */
+  bossVictories?: number
   /** 도전과제로 획득해 현재 장착한 칭호 코드와 표시 이름 */
   titleCode?: string | null
   title?: string | null

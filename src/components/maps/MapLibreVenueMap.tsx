@@ -223,7 +223,10 @@ function buildVenueElement(marker: MapMarker, onClick: () => void): VenueMarkerE
   element.className = 'venue-entity'
   element.style.setProperty('--venue-color', marker.color)
   element.style.setProperty('--tier-color', marker.tierColor)
-  element.setAttribute('aria-label', `${marker.fullLabel}, ${marker.sportLabel}, ELO ${marker.elo}`)
+  element.setAttribute(
+    'aria-label',
+    `${marker.fullLabel}, ${marker.boss ? '배드민턴 보스 거점, ' : ''}${marker.sportLabel}, ELO ${marker.elo}`,
+  )
 
   // 빛기둥과 바닥 원은 3D 레이어가 대신 그린다. 화면에 붙어 있는 CSS 도형은
   // 기울어진 지도에서 혼자 정면을 향해 어색하므로 만들지 않는다.
@@ -240,18 +243,13 @@ function buildVenueElement(marker: MapMarker, onClick: () => void): VenueMarkerE
   badge.textContent = marker.emoji
   badge.hidden = !marker.emoji
 
-  const crown = document.createElement('span')
-  crown.className = 'venue-crown'
-  crown.textContent = '♛'
-  crown.setAttribute('aria-hidden', 'true')
-
   const status = document.createElement('span')
   status.className = 'venue-game-status'
   status.setAttribute('aria-hidden', 'true')
 
   // 지도 위에는 이름표를 두지 않는다. 이름과 ELO는 상세 팝업에서 본다.
   // (읽어 주는 이름은 위 aria-label 에 남아 있다.)
-  element.append(image, badge, crown, status)
+  element.append(image, badge, status)
   element.addEventListener('click', onClick)
 
   const mapMarker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 10] })
@@ -260,21 +258,15 @@ function buildVenueElement(marker: MapMarker, onClick: () => void): VenueMarkerE
 
 function createPlayerElement() {
   const element = document.createElement('div')
-  element.className = 'player-map-marker'
+  element.className = 'player-location-marker'
   element.setAttribute('aria-label', '내 위치')
 
-  const platform = document.createElement('span')
-  platform.className = 'player-platform'
-  const direction = document.createElement('span')
-  direction.className = 'player-direction'
-  const image = document.createElement('img')
-  image.className = 'player-dino'
-  image.src = '/map/player-dino.webp'
-  image.alt = ''
-  image.draggable = false
-  image.hidden = true // 3D 모델이 대신 그린다
+  const pulse = document.createElement('span')
+  pulse.className = 'player-location-pulse'
+  const core = document.createElement('span')
+  core.className = 'player-location-core'
 
-  element.append(platform, direction, image)
+  element.append(pulse, core)
   return element
 }
 
@@ -322,7 +314,6 @@ export default function MapLibreVenueMap({
     hot: marker.hot,
     discovered: marker.discovered,
     boss: marker.boss,
-    throne: marker.throne,
     selected: marker.id === activeId,
   }))
 
@@ -446,19 +437,20 @@ export default function MapLibreVenueMap({
       const selected = marker.id === activeId
       entry.marker.setLngLat([marker.lng, marker.lat])
       entry.element.classList.toggle('is-selected', selected)
-      entry.element.classList.toggle('is-undiscovered', !marker.discovered)
       entry.element.classList.toggle('is-boss', marker.boss)
-      entry.element.classList.toggle('is-throne', marker.throne)
       entry.element.classList.toggle('is-hot', marker.hot)
       entry.element.style.setProperty('--venue-color', marker.color)
       entry.element.style.setProperty('--tier-color', marker.tierColor)
-      entry.element.style.zIndex = selected ? '8' : marker.boss || marker.throne ? '6' : '2'
+      entry.element.style.zIndex = selected ? '8' : marker.boss ? '6' : '2'
       entry.element.setAttribute('aria-pressed', String(selected))
-      entry.element.setAttribute('aria-label', `${marker.fullLabel}, ${marker.sportLabel}, ELO ${marker.elo}`)
+      entry.element.setAttribute(
+        'aria-label',
+        `${marker.fullLabel}, ${marker.boss ? '배드민턴 보스 거점, ' : ''}${marker.sportLabel}, ELO ${marker.elo}`,
+      )
       entry.badge.textContent = marker.emoji
       entry.badge.hidden = !marker.emoji
-      entry.status.textContent = marker.boss ? '👾' : marker.discovered ? '' : '?'
-      entry.status.hidden = marker.discovered && !marker.boss
+      entry.status.textContent = marker.boss ? '🏸 BOSS' : ''
+      entry.status.hidden = !marker.boss
       // 건물은 3D 레이어가 그리므로 평면 스프라이트는 감춘다.
       entry.image.hidden = true
     })
@@ -477,7 +469,7 @@ export default function MapLibreVenueMap({
 
     if (!playerMarkerRef.current) {
       const element = createPlayerElement()
-      playerMarkerRef.current = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 8] })
+      playerMarkerRef.current = new maplibregl.Marker({ element, anchor: 'center' })
         .setLngLat([me.lng, me.lat])
         .addTo(map)
     } else {

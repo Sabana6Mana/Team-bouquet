@@ -19,7 +19,7 @@ export interface AchievementDefinition {
     | 'home_venue_wins'
     | 'giant_killer_wins'
     | 'highest_rating'
-    | 'boss_participation'
+    | 'boss_victories'
 }
 
 /**
@@ -93,9 +93,9 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     metric: 'highest_rating', target: 1400,
   },
   {
-    code: 'boss_raider', name: '왕좌를 흔든 한 방', icon: '👾', rarity: 'epic',
-    description: '주간 체육관 보스전에 유효 경기로 기여하세요.', rewardTitle: '보스의 천적',
-    metric: 'boss_participation', target: 1,
+    code: 'boss_raider', name: '셔틀콕 가디언 격파', icon: '🏸', rarity: 'epic',
+    description: '배드민턴 보스에게 직접 도전해 승리하세요.', rewardTitle: '보스의 천적',
+    metric: 'boss_victories', target: 1,
   },
 ]
 
@@ -137,7 +137,7 @@ export function localAchievementProgress(
     }, {}))),
     giant_killer_wins: 0,
     highest_rating: Math.max(...Object.values(me.elo)),
-    boss_participation: history.some((record) => record.venueId === 'v1') ? 1 : 0,
+    boss_victories: me.bossVictories ?? 0,
   }
 
   return ACHIEVEMENTS.map((definition) => {

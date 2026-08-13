@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import VenueMap, { type MapMarker } from '../components/VenueMap'
 import VenueSheet from '../components/VenueSheet'
 import RankTicker from '../components/RankTicker'
+import PlayerAvatar from '../components/PlayerAvatar'
 import { MapProgressSummary } from '../components/gameplay/GameplayWidgets'
 import { activeMatchPath } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
@@ -13,6 +14,8 @@ import { useApp } from '../store/useApp'
 import type { MatchMode, SportId } from '../types'
 
 const MAP_SPORTS: SportId[] = ['badminton', 'tennis', 'tabletennis', 'basketball']
+/** 위치 권한을 쓰지 않는 데모에서만 보여 주는 지도상의 출발점. */
+const DEMO_MAP_POSITION = { lat: 37.502105, lng: 127.0489 }
 
 /**
  * 매칭 이후 화면을 확인하기 위한 테스트 버튼을 보일지.
@@ -83,8 +86,9 @@ export default function MapScreen() {
         tierColor: top ? tierOf(top.elo[shown]).color : '#8296B4',
         elo: top?.elo[shown] ?? 1200,
         discovered: discovered.has(venue.id),
-        boss: gameplay.boss.venueId === venue.id,
-        throne: gameplay.boss.venueId === venue.id && gameplay.boss.throne.contribution > 0,
+        // 보스전은 배드민턴 전용이다. 전체 지도에서는 위치를 안내하되,
+        // 다른 종목 필터에서는 일반 체육관으로 표시한다.
+        boss: (isAll || sport === 'badminton') && gameplay.boss.venueId === venue.id,
         // 필터와 무관한 전체 목록 기준 번호. 3D 건물을 고르게 나눠 준다.
         seat: VENUES.indexOf(venue),
       }
@@ -96,9 +100,13 @@ export default function MapScreen() {
   const playerTier = tierOf(me.elo[primarySport])
   const quickMode = SPORTS[primarySport].modes[0]
 
-  // 경진대회 지도는 강남 거점을 먼저 보여준다. 실제 위치가 강남 생활권이면
-  // 그대로 쓰고, 멀리 있으면 데모 스폰 지점만 지도 연출에 사용한다.
-  const mapPosition = distanceMeters(coords, HOME) <= QUICK_RADIUS_M * 2 ? coords : HOME
+  // 초기 HOME 좌표는 위치 권한을 받기 전의 데모 기본값이라 인접 체육관과 겹친다.
+  // 실제 강남 생활권 좌표는 그대로 쓰고, 기본값/생활권 밖 좌표만 지도 연출용
+  // 출발점으로 옮긴다. 매칭 거리 계산에 사용하는 coords 자체는 바꾸지 않는다.
+  const hasDevicePosition = distanceMeters(coords, HOME) > 5
+  const mapPosition = hasDevicePosition && distanceMeters(coords, HOME) <= QUICK_RADIUS_M * 2
+    ? coords
+    : DEMO_MAP_POSITION
 
   const selectSport = (next: SportId | 'all') => {
     setSport(next)
@@ -161,7 +169,7 @@ export default function MapScreen() {
           <div className="map-summary-card">
             <button className="player-summary" onClick={() => nav('/profile')} aria-label="내 프로필 열기">
               <span className="player-summary__avatar" aria-hidden="true">
-                <img src="/map/player-dino.webp" alt="" />
+                <PlayerAvatar player={me} />
               </span>
               <span className="player-summary__identity">
                 <strong>{me.nickname}</strong>
@@ -172,7 +180,11 @@ export default function MapScreen() {
               </span>
             </button>
             <span className="summary-divider" aria-hidden="true" />
-            <MapProgressSummary gameplay={gameplay} onOpen={() => nav('/collection')} />
+            <MapProgressSummary
+              gameplay={gameplay}
+              onOpenCollection={() => nav('/collection')}
+              onOpenSeason={() => nav('/achievements#season-quests')}
+            />
           </div>
 
           <button
