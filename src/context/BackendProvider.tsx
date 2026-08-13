@@ -5,13 +5,13 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import {
   authApi, backendApi, backendConfig,
-  type BackendMatchHistory, type CurrentMatch, type Notification,
+  type BackendMatchHistory, type BossMatchStartResult, type CurrentMatch, type Notification,
   type ProfileWithRatings, type QueueEntry, type VenueSlot,
 } from '../backend'
 import { encodeSlot } from '../lib/game'
 import { forcedDemo } from '../lib/forcedDemo'
 import { titleForAchievement } from '../data/achievements'
-import type { BossChallengeResult, GameplayOutcome, GameplaySummary } from '../data/gameplay'
+import type { GameplayOutcome, GameplaySummary } from '../data/gameplay'
 import { isAvatarImageUrl } from '../data/characters'
 import { useApp } from '../store/useApp'
 import type {
@@ -45,8 +45,7 @@ interface BackendRuntime {
   signOut: () => Promise<void>
   checkNickname: (nickname: string) => Promise<boolean>
   saveProfile: (nickname: string, interests: SportId[], avatarUrl?: string | null) => Promise<void>
-  startBossChallenge: (eventId: string) => Promise<BossChallengeResult>
-  resolveBossChallenge: (challengeId: string) => Promise<BossChallengeResult>
+  startBossMatch: (eventId: string) => Promise<BossMatchStartResult>
   equipTitle: (achievementCode: string | null) => Promise<void>
   refresh: () => Promise<void>
 }
@@ -229,6 +228,8 @@ function matchFromBackend(
       quick: snapshot.match.quick,
       venueName: snapshot.venue?.name,
       venuePricePerHour: snapshot.venue?.price_per_hour,
+      bossEventId: snapshot.match.boss_event_id ?? undefined,
+      bossPlayerId: snapshot.match.boss_profile_id ?? undefined,
       sport: snapshot.match.sport as SportId,
       mode: snapshot.match.mode as Match['mode'],
       capacity: snapshot.match.capacity,
@@ -319,6 +320,8 @@ function historyFromBackend(entries: BackendMatchHistory[], userId: string): Mat
       losers: members.filter((member) => member.team !== match.winner_team).map((member) => member.user_id),
       score: match.score ?? '-',
       eloDelta: mine?.rating_delta ?? 0,
+      bossEventId: match.boss_event_id ?? undefined,
+      bossPlayerId: match.boss_profile_id ?? undefined,
     }]
   })
 }
@@ -676,21 +679,10 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       await backendApi.profile.upsert({ nickname, interests, avatarUrl })
       await refresh()
     },
-    startBossChallenge: async (eventId) => {
+    startBossMatch: async (eventId) => {
       setError(null)
       try {
-        const result = await backendApi.gameplay.startBossChallenge(eventId)
-        await refresh()
-        return result
-      } catch (caught) {
-        setError(messageOf(caught))
-        throw caught
-      }
-    },
-    resolveBossChallenge: async (challengeId) => {
-      setError(null)
-      try {
-        const result = await backendApi.gameplay.resolveBossChallenge(challengeId)
+        const result = await backendApi.gameplay.startBossMatch(eventId)
         await refresh()
         return result
       } catch (caught) {

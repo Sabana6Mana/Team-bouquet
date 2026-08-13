@@ -14,6 +14,7 @@ import PlayerAvatar from '../components/PlayerAvatar'
 import {
   INTRO_CAST_MS, INTRO_HERO_MS, INTRO_SETTLE_MS, INTRO_TAIL_MS,
 } from '../lib/matchIntro'
+import { bossMatchMetadata } from '../lib/bossMatch'
 
 // three.js 는 무겁다. 매칭 화면에 들어올 때만 따로 받아 첫 화면을 가볍게 둔다.
 const CourtStage = lazy(() => import('../components/CourtStage'))
@@ -289,6 +290,8 @@ export default function RoomScreen() {
   const venue = VENUES.find((v) => v.id === match.venueId)
   const venueName = venue?.name ?? match.venueName ?? '매칭 장소'
   const meta = SPORTS[match.sport]
+  const bossMatch = bossMatchMetadata(match)
+  const bossPlayer = bossMatch ? match.players.find((player) => player.id === bossMatch.bossId) : null
   const myVote = match.votes[me.id]
   const pricePerHour = venue?.pricePerHour ?? match.venuePricePerHour
   const perPerson = pricePerHour === undefined ? null : Math.round(pricePerHour / match.capacity)
@@ -317,7 +320,10 @@ export default function RoomScreen() {
     || (match.confirmedSlotEndsAt !== undefined && Date.now() >= match.confirmedSlotEndsAt)
 
   const cancelActiveMatch = () => {
-    if (!window.confirm('이 매칭을 취소할까요? 확정된 장소와 시간도 다시 예약 가능 상태로 돌아갑니다.')) return
+    const message = bossMatch
+      ? '이 보스전을 취소할까요? 확정된 장소와 시간도 다시 예약 가능 상태로 돌아갑니다.'
+      : '이 매칭을 취소할까요? 확정된 장소와 시간도 다시 예약 가능 상태로 돌아갑니다.'
+    if (!window.confirm(message)) return
     cancelMatch()
     nav('/', { replace: true })
   }
@@ -408,8 +414,10 @@ export default function RoomScreen() {
    */
   const heroBanner = (intro === 'hero' || intro === 'settle') && (
     <div className={`arena-hero${intro === 'settle' ? ' is-leaving' : ''}`}>
-      <span className="arena-hero__sub">매칭 성사</span>
-      <strong className="arena-hero__title">{meta.label} 한판 뜨자!</strong>
+      <span className="arena-hero__sub">{bossMatch ? 'BOSS MATCH' : '매칭 성사'}</span>
+      <strong className="arena-hero__title">
+        {bossMatch ? `${bossPlayer?.nickname ?? '주간 보스'}에게 도전!` : `${meta.label} 한판 뜨자!`}
+      </strong>
       <span className="arena-hero__where">{venueName}</span>
     </div>
   )
@@ -499,7 +507,7 @@ export default function RoomScreen() {
     </>
   ) : (
     <button className="btn ghost sm grow" style={{ color: 'var(--red)' }} onClick={cancelActiveMatch}>
-      매칭 취소
+      {bossMatch ? '보스전 취소' : '매칭 취소'}
     </button>
   )
 
@@ -576,6 +584,7 @@ export default function RoomScreen() {
               </div>
               <span className="chip">{meta.label}</span>
               <span className="chip">{MODE_LABEL[match.mode]}</span>
+              {bossMatch && <span className="chip" style={{ color: 'var(--purple)' }}>🏸 BOSS MATCH</span>}
               <div className="wide-price">
                 <small>인당 요금</small>
                 <b>{perPerson === null ? '확인 중' : won(perPerson)}</b>
@@ -676,7 +685,7 @@ export default function RoomScreen() {
       {heroBanner}
 
       <TopBar
-        title={confirmed ? '예약 확정' : '일정 조율'}
+        title={bossMatch ? (confirmed ? '보스전 예약 확정' : '보스전 일정 조율') : (confirmed ? '예약 확정' : '일정 조율')}
         onBack={() => nav('/')}
         right={
           <span className="chip mono" style={{ color: confirmed ? 'var(--green)' : 'var(--gold)' }}>
@@ -702,6 +711,7 @@ export default function RoomScreen() {
                 {meta.label} {MODE_LABEL[match.mode]} · 인당 {perPerson === null ? '비용 확인 중' : won(perPerson)}
               </span>
             </div>
+            {bossMatch && <span className="chip" style={{ color: 'var(--purple)', flexShrink: 0 }}>BOSS</span>}
           </div>
 
           <div style={{ padding: '12px 0 14px' }}>
@@ -762,7 +772,7 @@ export default function RoomScreen() {
           <div className="stack" style={{ gap: 8 }}>
             {backend.liveMatch && (
               <button className="btn ghost" style={{ width: '100%', color: 'var(--red)' }} onClick={cancelActiveMatch}>
-                매칭 취소 · 예약 시간 해제
+                {bossMatch ? '보스전 취소 · 예약 시간 해제' : '매칭 취소 · 예약 시간 해제'}
               </button>
             )}
             <div className="row" style={{ gap: 8 }}>
@@ -780,7 +790,7 @@ export default function RoomScreen() {
           <div className="stack" style={{ gap: 8 }}>
             {backend.liveMatch && (
               <button className="btn ghost" style={{ width: '100%', color: 'var(--red)' }} onClick={cancelActiveMatch}>
-                매칭 취소
+                {bossMatch ? '보스전 취소' : '매칭 취소'}
               </button>
             )}
             <form className="row" style={{ gap: 8 }} onSubmit={submitChat}>

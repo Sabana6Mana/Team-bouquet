@@ -90,6 +90,21 @@ export interface MatchMutationResult {
   raw: Json
 }
 
+/** 지정된 실제 사용자 보스와 일반 1대1 매치를 생성한 결과. */
+export interface BossMatchStartResult {
+  matchId: string
+  eventId: string
+  venueId: string
+  bossProfileId: string
+  bossNickname: string
+  bossAvatarUrl: string | null
+  bossRating: number
+  phase?: string
+  acceptanceDeadline?: string | null
+  reused: boolean
+  raw: Json
+}
+
 export interface GiveHonorResult {
   matchId: string
   receiverId: string

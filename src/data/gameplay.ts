@@ -1,5 +1,6 @@
 import type { Match, MatchRecord, Player, SportId } from '../types'
-import { REGION, VENUES } from './seed'
+import { bossVictoriesOf } from './achievements'
+import { DEMO_BOSS_EVENT_ID, DEMO_BOSS_PLAYER, DEMO_BOSS_VENUE_ID, REGION, VENUES } from './seed'
 
 export type SeasonQuestCode = 'first_match' | 'venues_3' | 'boss_raider'
 
@@ -22,8 +23,6 @@ export interface GameplayRegionProgress {
   completionPercent: number
 }
 
-export type BossChallengeStatus = 'none' | 'active' | 'won' | 'lost' | 'abandoned'
-
 export interface GameplayBossOpponent {
   nickname: string
   avatar: string
@@ -39,30 +38,14 @@ export interface GameplayBoss {
   icon: string
   sport: 'badminton'
   opponent: GameplayBossOpponent
-  challengeId: string | null
-  challengeStatus: BossChallengeStatus
+  /** 이미 생성된 보스 일반 매치가 있으면 이어가기 위해 제공한다. */
+  matchId?: string | null
+  matchPhase?: string | null
   canChallenge: boolean
   titleUnlocked: boolean
   rewardTitle: string
   defeated: boolean
   endsLabel: string
-}
-
-/** 배드민턴 보스전 시작/판정 RPC가 공통으로 돌려주는 결과다. */
-export interface BossChallengeResult {
-  challengeId: string
-  eventId: string
-  venueId: string
-  sport: 'badminton'
-  bossName: string
-  bossAvatarUrl: string | null
-  bossRating: number
-  status: Exclude<BossChallengeStatus, 'none'>
-  won: boolean | null
-  score: string | null
-  titleCode: 'boss_raider' | null
-  titleUnlocked: boolean
-  newlyUnlocked: boolean
 }
 
 export interface GameplaySeasonQuest {
@@ -110,12 +93,11 @@ export interface GameplayOutcome {
   unlockedQuests: GameplaySeasonQuest[]
 }
 
-const BOSS_VENUE_ID = 'v1'
 const DEMO_BOSS = {
-  nickname: '셔틀콕 가디언',
-  avatar: '🐲',
-  avatarUrl: null,
-  rating: 1350,
+  nickname: DEMO_BOSS_PLAYER.nickname,
+  avatar: DEMO_BOSS_PLAYER.avatar,
+  avatarUrl: DEMO_BOSS_PLAYER.avatarUrl ?? null,
+  rating: DEMO_BOSS_PLAYER.elo.badminton,
 } satisfies GameplayBossOpponent
 
 const SPORT_ICONS: Record<SportId, string> = {
@@ -149,8 +131,8 @@ export function unavailableGameplaySummary(): GameplaySummary {
       icon: '🏸',
       sport: 'badminton',
       opponent: { ...DEMO_BOSS },
-      challengeId: null,
-      challengeStatus: 'none',
+      matchId: null,
+      matchPhase: null,
       canChallenge: false,
       titleUnlocked: false,
       rewardTitle: '보스의 천적',
@@ -210,7 +192,7 @@ export function localGameplaySummary(history: MatchRecord[], me: Player): Gamepl
     }
   })
   const discovered = venues.filter((venue) => venue.discovered).length
-  const bossVictories = me.bossVictories ?? 0
+  const bossVictories = bossVictoriesOf(records, me.id)
 
   const quests = [
     quest('first_match', records.length, 1, {
@@ -226,9 +208,9 @@ export function localGameplaySummary(history: MatchRecord[], me: Player): Gamepl
       rewardTitle: '코트 유목민',
     }),
     quest('boss_raider', bossVictories, 1, {
-      name: '셔틀콕 가디언 격파',
-      description: '배드민턴 보스에게 직접 도전해 승리하세요.',
-      icon: '👾',
+      name: '체육관 보스 격파',
+      description: '지정된 배드민턴 보스 사용자와 실제 1대1 경기에서 승리하세요.',
+      icon: '🏸',
       rewardTitle: '보스의 천적',
     }),
   ]
@@ -243,15 +225,15 @@ export function localGameplaySummary(history: MatchRecord[], me: Player): Gamepl
     },
     venues,
     boss: {
-      eventId: 'demo-badminton-boss-v1',
-      venueId: BOSS_VENUE_ID,
-      venueName: VENUES.find((venue) => venue.id === BOSS_VENUE_ID)?.name ?? '대치체육센터',
+      eventId: DEMO_BOSS_EVENT_ID,
+      venueId: DEMO_BOSS_VENUE_ID,
+      venueName: VENUES.find((venue) => venue.id === DEMO_BOSS_VENUE_ID)?.name ?? '대치체육센터',
       name: '배드민턴 주간 보스',
-      icon: '👾',
+      icon: '🏸',
       sport: 'badminton',
       opponent: { ...DEMO_BOSS },
-      challengeId: null,
-      challengeStatus: bossVictories > 0 ? 'won' : 'none',
+      matchId: null,
+      matchPhase: null,
       canChallenge: bossVictories === 0,
       titleUnlocked: bossVictories > 0,
       rewardTitle: '보스의 천적',
@@ -282,6 +264,8 @@ function recordFromMatch(match: Match): MatchRecord {
     losers: match.teams[winner === 'a' ? 'b' : 'a'],
     score: match.result?.score ?? '-',
     eloDelta: match.result?.delta ?? 0,
+    bossEventId: match.bossEventId,
+    bossPlayerId: match.bossPlayerId,
   }
 }
 

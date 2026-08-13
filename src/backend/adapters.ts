@@ -231,6 +231,8 @@ export function currentMatchToAppMatch(
     id: match.id,
     venueId: match.venue_id ?? '',
     quick: match.quick,
+    bossEventId: match.boss_event_id ?? undefined,
+    bossPlayerId: match.boss_profile_id ?? undefined,
     sport: asSport(match.sport),
     mode: asMode(match.mode),
     capacity: match.capacity,

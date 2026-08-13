@@ -7,7 +7,10 @@ import {
   capacityOf, distanceMeters, eloDelta, encodeSlot, isSlotOpen, QUICK_RADIUS_M,
   recommendTeams, teamAvg, TIME_SLOTS,
 } from '../lib/game'
-import { BOT_CHATS, HOME, NPCS, VENUES } from '../data/seed'
+import {
+  BOT_CHATS, DEMO_BOSS_EVENT_ID, DEMO_BOSS_PLAYER, DEMO_BOSS_VENUE_ID,
+  HOME, NPCS, VENUES,
+} from '../data/seed'
 import { backendApi, backendConfig } from '../backend'
 import { forcedDemo, serverMode } from '../lib/forcedDemo'
 import { INTRO_TOTAL_MS } from '../lib/matchIntro'
@@ -104,6 +107,8 @@ interface AppState {
    * 진행 중이던 매치가 있어도 밀어내고 새로 연다.
    */
   forceDemoMatch: (sport: SportId, mode: MatchMode) => void
+  /** 사람형 주간 보스를 실제 참가자로 넣은 로컬 배드민턴 1v1 매치를 시작한다. */
+  startBossMatch: () => string
   cancelMatch: () => void
   acceptMatch: () => void
   expireMatchAcceptance: () => void
@@ -120,9 +125,6 @@ interface AppState {
   giveHonor: (playerId: string, honorType: HonorType) => void
   finishMatch: () => void
   openReporting: () => void
-  /** 데모 보스전 승리만 기록한다. 일반 경기 기록/ELO와 완전히 분리된다. */
-  recordBossVictory: () => void
-
   notify: (title: string, body: string, link?: string) => void
   dismissToast: () => void
   markAllRead: () => void
@@ -292,6 +294,74 @@ export const useApp = create<AppState>()(
         get().notify('테스트 매칭 시작', '서버 대신 NPC로 채우는 데모 매치입니다.', '/queue')
       },
 
+      startBossMatch: () => {
+        clearTimers()
+        const activeMatch = get().match
+        if (activeMatch) {
+          get().notify('진행 중인 매치가 있어요', '현재 매치를 먼저 완료하거나 취소해 주세요.')
+          return activeMatch.id
+        }
+
+        forcedDemo.enable()
+        if (backendConfig.configured) void backendApi.queue.cancel().catch(() => {})
+
+        const me = get().me
+        const id = uid('boss-match')
+        const match: Match = {
+          id,
+          venueId: DEMO_BOSS_VENUE_ID,
+          quick: false,
+          bossEventId: DEMO_BOSS_EVENT_ID,
+          bossPlayerId: DEMO_BOSS_PLAYER.id,
+          sport: 'badminton',
+          mode: '1v1',
+          capacity: 2,
+          hostId: me.id,
+          players: [me],
+          phase: 'queue',
+          votes: {},
+          confirmedSlot: null,
+          payments: {},
+          chat: [],
+          teams: { a: [], b: [] },
+          teamReady: {},
+          reports: {},
+          resultVotes: {},
+          resultVoteScores: {},
+          result: null,
+          honorGiven: null,
+          createdAt: Date.now(),
+        }
+        set({ match, backendError: null, testMatch: true })
+
+        // 일반 데모 큐와 같은 화면을 거친 뒤 지정 보스가 입장·수락한다.
+        // 도전자는 5분 수락 화면에서 직접 수락해야 일정 조율로 넘어간다.
+        later(() => {
+          const current = get().match
+          if (!current || current.id !== id || current.phase !== 'queue') return
+          const players = [me, DEMO_BOSS_PLAYER]
+          set({
+            match: {
+              ...current,
+              players,
+              teams: { a: [me.id], b: [DEMO_BOSS_PLAYER.id] },
+              acceptanceDeadline: Date.now() + 5 * 60 * 1000,
+              accepted: { [DEMO_BOSS_PLAYER.id]: true },
+              chat: [{
+                id: uid('c'),
+                playerId: 'system',
+                system: true,
+                at: Date.now(),
+                text: `${DEMO_BOSS_PLAYER.nickname} 님이 보스전을 수락했습니다. 5분 안에 도전을 수락해 주세요.`,
+              }],
+            },
+          })
+          get().notify('보스 매칭 성사! 🏸', '5분 안에 수락하면 경기 시간을 정할 수 있습니다.', '/queue')
+        }, 900)
+
+        return id
+      },
+
       cancelMatch: () => {
         clearTimers()
         if (serverMode()) {
@@ -319,9 +389,35 @@ export const useApp = create<AppState>()(
 
       acceptMatch: () => {
         const m = get().match
-        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline || !serverMode()) return
+        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline) return
         const meId = get().me.id
         const previous = m.accepted?.[meId] ?? false
+
+        if (!serverMode()) {
+          if (!m.bossEventId || !m.bossPlayerId || m.acceptanceDeadline <= Date.now()) return
+          const accepted = { ...m.accepted, [meId]: true, [m.bossPlayerId]: true }
+          set({
+            match: {
+              ...m,
+              accepted,
+              phase: 'scheduling',
+              chat: [
+                ...m.chat,
+                {
+                  id: uid('c'),
+                  playerId: 'system',
+                  system: true,
+                  at: Date.now(),
+                  text: '도전자와 보스가 모두 수락했습니다. 예약 가능한 시간을 골라 투표해 주세요.',
+                },
+              ],
+            },
+          })
+          get().notify('보스전 수락 완료!', '이제 보스와 경기 시간을 정해 주세요.', '/room')
+          scheduleBotBehaviour(m.id, get, set)
+          return
+        }
+
         set({ match: { ...m, accepted: { ...m.accepted, [meId]: true } } })
         void backendApi.matches.accept(m.id).then((result) => {
           set((state) => ({
@@ -344,7 +440,14 @@ export const useApp = create<AppState>()(
 
       expireMatchAcceptance: () => {
         const m = get().match
-        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline || !serverMode()) return
+        if (!m || m.phase !== 'queue' || !m.acceptanceDeadline) return
+        if (!serverMode()) {
+          if (!m.bossEventId || m.acceptanceDeadline > Date.now()) return
+          set({ match: null })
+          endForcedDemo(set)
+          get().notify('보스 도전 시간이 끝났습니다', '5분 안에 수락하지 않아 이번 도전이 취소되었습니다.')
+          return
+        }
         void backendApi.matches.expireAcceptance(m.id).then((result) => {
           set((state) => ({
             match: result.phase === 'canceled' && state.match?.id === m.id ? null : state.match,
@@ -693,6 +796,14 @@ export const useApp = create<AppState>()(
         )
         const me = get().me
         const nextStreak = iWon ? (me.streak ?? 0) + 1 : 0
+        const defeatedBoss = Boolean(
+          iWon
+          && m.bossEventId
+          && m.bossPlayerId
+          && m.sport === 'badminton'
+          && m.mode === '1v1'
+          && m.teams[myTeam === 'a' ? 'b' : 'a'].includes(m.bossPlayerId),
+        )
         set({
           me: {
             ...me,
@@ -704,7 +815,13 @@ export const useApp = create<AppState>()(
           },
           match: { ...m, result: { winner, score, delta }, phase: 'reporting' },
         })
-        get().notify('결과 확정!', iWon ? '승리가 기록되었습니다.' : '결과가 기록되었습니다.', '/result')
+        get().notify(
+          defeatedBoss ? '배드민턴 보스 격파! 🏸' : '결과 확정!',
+          defeatedBoss
+            ? '승리가 기록되고 《보스의 천적》 칭호가 해금되었습니다.'
+            : iWon ? '승리가 기록되었습니다.' : '결과가 기록되었습니다.',
+          '/result',
+        )
       },
 
       giveHonor: (playerId, honorType) => {
@@ -786,6 +903,8 @@ export const useApp = create<AppState>()(
           losers: m.teams[(m.result?.winner ?? 'a') === 'a' ? 'b' : 'a'],
           score: m.result?.score ?? '-',
           eloDelta: delta,
+          bossEventId: m.bossEventId,
+          bossPlayerId: m.bossPlayerId,
         }
         clearTimers()
         if (serverMode()) {
@@ -830,18 +949,6 @@ export const useApp = create<AppState>()(
           set({ backendError: message })
           get().notify('결과 입력 시작 실패', message)
         })
-      },
-
-      recordBossVictory: () => {
-        if (serverMode()) return
-        const me = get().me
-        if ((me.bossVictories ?? 0) > 0) return
-        set({ me: { ...me, bossVictories: 1 } })
-        get().notify(
-          '배드민턴 보스 격파! 🏸',
-          '《보스의 천적》 칭호를 획득했습니다. 도전과제에서 장착해 보세요.',
-          '/achievements',
-        )
       },
 
       /* ─────────────── 알림 ─────────────── */

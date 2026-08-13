@@ -54,8 +54,6 @@ export interface Player {
   streak?: number
   /** 달성한 최고 연승. 도전과제는 패배 뒤에도 이 기록을 유지한다. */
   bestStreak?: number
-  /** 데모 모드의 배드민턴 보스 격파 횟수. 일반 경기와 ELO에는 포함되지 않는다. */
-  bossVictories?: number
   /** 도전과제로 획득해 현재 장착한 칭호 코드와 표시 이름 */
   titleCode?: string | null
   title?: string | null
@@ -73,6 +71,10 @@ export interface MatchRecord {
   losers: string[]
   score: string
   eloDelta: number
+  /** 이 경기가 지정 보스에게 도전해 생성된 경기일 때만 존재한다. */
+  bossEventId?: string
+  /** 실제 상대 팀에 참가한 보스 Player/Profile의 id. */
+  bossPlayerId?: string
 }
 
 export type MatchPhase =
@@ -101,6 +103,10 @@ export interface Match {
   /** 라이브 백엔드가 내려준 장소 스냅샷. 정적 seed에 없는 장소도 안전하게 표시한다. */
   venueName?: string
   venuePricePerHour?: number
+  /** 지도 보스 CTA가 만든 경기임을 증명하는 이벤트 id. */
+  bossEventId?: string
+  /** 이 경기의 실제 참가자 중 보스로 지정된 Player/Profile id. */
+  bossPlayerId?: string
   sport: SportId
   mode: MatchMode
   capacity: number
