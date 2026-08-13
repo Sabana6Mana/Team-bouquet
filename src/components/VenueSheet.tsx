@@ -6,12 +6,12 @@ import {
   earliestOpenSlot, isSlotOpen, slotShortLabel, tierOf, won,
 } from '../lib/game'
 import { leaderboardOf, npcById, recordsOf } from '../data/seed'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { useBackend } from '../context/BackendProvider'
 import { useApp } from '../store/useApp'
 import { VenueGameplayCard } from './gameplay/GameplayWidgets'
 import { activeMatchPath } from './ui'
 import PlayerAvatar from './PlayerAvatar'
+import { useGameplay } from '../lib/useGameplay'
 
 /** 지도 위에 뜨는 체육관 상세 팝업. 마커는 왼쪽, 팝업은 오른쪽. */
 export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: () => void }) {
@@ -28,9 +28,7 @@ export default function VenueSheet({ venue, onClose }: { venue: Venue; onClose: 
   const board = leaderboardOf(venue.id, sport)
   const records = recordsOf(venue.id)
   const earliest = earliestOpenSlot(venue.id)
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
 
   return (
     <div className="gpopup">

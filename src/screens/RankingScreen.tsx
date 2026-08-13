@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { NPCS } from '../data/seed'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SPORT_LIST, SPORTS, TIERS, tierOf } from '../lib/game'
 import { useBackend } from '../context/BackendProvider'
 import { WeeklyBossCard } from '../components/gameplay/GameplayWidgets'
 import { Jumbotron } from '../components/ui'
 import PlayerAvatar from '../components/PlayerAvatar'
 import type { SportId } from '../types'
+import { useGameplay } from '../lib/useGameplay'
 
 export default function RankingScreen() {
   const me = useApp((s) => s.me)
@@ -16,9 +16,7 @@ export default function RankingScreen() {
   const [sport, setSport] = useState<SportId>('badminton')
   const backend = useBackend()
   const nav = useNavigate()
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
 
   const all = [...NPCS, me].sort((a, b) => b.elo[sport] - a.elo[sport])
   const myRank = all.findIndex((p) => p.id === me.id) + 1

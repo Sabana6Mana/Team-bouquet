@@ -325,9 +325,18 @@ export function createVenueModelLayer(
       .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
   }
 
-  /** 원하는 건물이 아직 안 왔으면 먼저 도착한 아무 건물이나 세워 둔다. */
-  function pickTemplate(variant: number) {
-    return templates[variant] ?? templates.find(Boolean) ?? null
+  /**
+   * 원하는 건물이 아직 안 왔으면 먼저 도착한 아무 건물이나 세워 둔다.
+   *
+   * "무엇을 세웠는지"까지 함께 돌려주는 게 중요하다. 요청한 번호만 기록하면
+   * 대신 세운 건물을 제 건물로 착각해, 나중에 진짜 모델이 도착해도
+   * 갈아 끼우지 않고 모든 거점이 같은 건물로 남는다.
+   */
+  function pickTemplate(variant: number): { model: THREE.Group; variant: number } | null {
+    const wanted = templates[variant]
+    if (wanted) return { model: wanted, variant }
+    const fallback = templates.findIndex(Boolean)
+    return fallback < 0 ? null : { model: templates[fallback]!, variant: fallback }
   }
 
   /** 건물과 빛기둥을 한 그룹으로 묶어 새 거점을 만든다. */
@@ -388,13 +397,14 @@ export function createVenueModelLayer(
 
     getPlacements().forEach((place) => {
       const look = styleOf(place, templates.length)
-      const model = pickTemplate(look.variant)
-      if (!model) return
+      const chosen = pickTemplate(look.variant)
+      if (!chosen) return
       alive.add(place.id)
 
       let instance = instances.get(place.id)
       if (!instance) {
-        instance = createInstance(look.variant, model)
+        // 실제로 세운 건물의 번호를 기록한다(대신 세운 것일 수도 있다).
+        instance = createInstance(chosen.variant, chosen.model)
         instances.set(place.id, instance)
       } else if (instance.variant !== look.variant && templates[look.variant]) {
         // 임시로 세워 뒀던 건물을 제 건물로 갈아 끼운다.

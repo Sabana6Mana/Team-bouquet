@@ -17,6 +17,7 @@ import { useApp } from '../store/useApp'
 import type {
   AchievementProgress, Account, AppNotification, HonorCounts, Match, MatchPhase, MatchRecord, Player, SportId,
 } from '../types'
+import { clearDemoVerified, isDemoVerified } from '../lib/demoPhoneAuth'
 
 interface BackendRuntime {
   /** Supabase 가 설정돼 있는지. 로그인·프로필 흐름이 이 값을 본다. */
@@ -637,7 +638,10 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const value = useMemo<BackendRuntime>(() => ({
     enabled: backendConfig.configured,
     kakaoEnabled: backendConfig.kakaoEnabled,
-    phoneVerified: Boolean(session?.user.phone && session.user.phone_confirmed_at),
+    // 실제 문자 인증을 붙이기 전까지는 시연용 통과 표시도 인정한다.
+    // (SMS 사업자를 연결하면 뒤쪽 조건만 지우면 된다)
+    phoneVerified: Boolean(session?.user.phone && session.user.phone_confirmed_at)
+      || (Boolean(session?.user) && isDemoVerified()),
     liveMatch: backendConfig.configured && !testMatch,
     ready,
     user: session?.user ?? null,
@@ -678,6 +682,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       setSession(data.session)
     },
     signOut: async () => {
+      clearDemoVerified()
       await authApi.signOut()
       sessionUserId.current = null
       setSession(null)

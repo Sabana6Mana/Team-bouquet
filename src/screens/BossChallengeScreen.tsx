@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import PlayerAvatar from '../components/PlayerAvatar'
 import { activeMatchPath, TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { useApp } from '../store/useApp'
+import { useGameplay } from '../lib/useGameplay'
 
 /**
  * 지정된 실제 사용자 보스에게 도전하는 진입 화면.
@@ -17,15 +17,21 @@ export default function BossChallengeScreen() {
   const match = useApp((state) => state.match)
   const history = useApp((state) => state.history)
   const startLocalBossMatch = useApp((state) => state.startBossMatch)
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
   const boss = gameplay.boss
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** 대전 신청장을 보냈는지. 보스가 받아들이면 그때 매칭이 열린다. */
+  const [requested, setRequested] = useState(false)
 
-  const begin = async () => {
+  /**
+   * 보스에게 대전 신청장을 보낸다.
+   *
+   * 예전에는 누르는 즉시 매칭이 시작됐지만, 지금은 받아들일지를 보스가 정한다.
+   * 보스가 수락하면 그때부터 일반 1v1 매칭과 같은 흐름으로 진행된다.
+   */
+  const requestMatch = async () => {
     if (match) {
       nav(activeMatchPath(match.phase))
       return
@@ -34,11 +40,11 @@ export default function BossChallengeScreen() {
     setBusy(true)
     setError(null)
     try {
-      if (backend.liveMatch) await backend.startBossMatch(boss.eventId)
-      else startLocalBossMatch()
-      nav('/queue', { replace: true })
+      // 신청 자체는 아직 서버에 보관하지 않는다.
+      // 보스가 수락하는 흐름이 붙기 전까지는 접수 사실만 알린다.
+      setRequested(true)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '보스 매칭을 시작하지 못했습니다.')
+      setError(caught instanceof Error ? caught.message : '대전 신청을 보내지 못했습니다.')
     } finally {
       setBusy(false)
     }
@@ -123,32 +129,52 @@ export default function BossChallengeScreen() {
           <section className="card stack" style={{ gap: 13, padding: 17 }}>
             <div className="row spread" style={{ alignItems: 'flex-start', gap: 12 }}>
               <div className="stack" style={{ gap: 4 }}>
-                <strong>실제 보스전 진행 방식</strong>
+                <strong>보스전 진행 방식</strong>
                 <span className="small">미니게임이 아니라 보스 사용자와 직접 경기합니다.</span>
               </div>
-              <span className="chip" style={{ color: 'var(--gold)', flexShrink: 0 }}>5분 수락</span>
+              <span className="chip" style={{ color: 'var(--purple)', flexShrink: 0 }}>한 달 시즌</span>
             </div>
             <div className="stack small" style={{ gap: 9 }}>
-              <span>1. 도전하면 지정된 보스에게만 매칭 요청이 전달됩니다.</span>
-              <span>2. 두 사람이 5분 안에 수락한 뒤 채팅으로 경기 시간을 맞춥니다.</span>
-              <span>3. 실제 경기 결과가 확정되고 도전자가 이겼을 때만 칭호를 얻습니다.</span>
-              <span>4. 같은 체육관의 일반 경기 승리는 보스 격파로 인정되지 않습니다.</span>
+              <span>1. 대전 신청장을 보내면 보스에게 전달됩니다.</span>
+              <span>2. <b>받아들일지는 보스가 정합니다.</b> 수락하면 알림이 오고, 그때부터 일반 1v1 매칭과 같이 진행됩니다.</span>
+              <span>3. 보스는 실력을 인정받아 선정되며, 한 달 동안 <b>주 3회</b> 경기를 치러야 합니다.</span>
+              <span>4. 한 달 안에 도전자들이 보스를 <b>5번 이상</b> 이기면 참여자 전원이 보상을 받습니다.</span>
+              <span>5. 그러지 못하면 보상은 보스가 가져갑니다.</span>
             </div>
-            <button
-              className="btn primary"
-              disabled={busy || challengeUnavailable}
-              onClick={() => { void begin() }}
-            >
-              {busy
-                ? '보스에게 도전장 보내는 중…'
-                : match
-                  ? '진행 중인 매칭으로 돌아가기'
-                  : !boss.eventId
-                    ? '다음 보스를 준비 중입니다'
-                    : !boss.canChallenge
-                      ? '현재 보스에게 도전할 수 없습니다'
-                      : '보스에게 도전하기'}
-            </button>
+            {requested ? (
+              <div
+                className="card stack center fade-in"
+                style={{
+                  gap: 6,
+                  padding: 16,
+                  textAlign: 'center',
+                  borderColor: 'rgba(122, 91, 189, 0.45)',
+                  background: 'rgba(122, 91, 189, 0.08)',
+                }}
+              >
+                <span style={{ fontSize: 26 }} aria-hidden="true">📨</span>
+                <strong style={{ color: 'var(--purple)' }}>대전 신청이 완료되었습니다</strong>
+                <span className="small">
+                  보스가 신청을 받아들이면 알림으로 알려드립니다.
+                </span>
+              </div>
+            ) : (
+              <button
+                className="btn primary"
+                disabled={busy || challengeUnavailable}
+                onClick={() => { void requestMatch() }}
+              >
+                {busy
+                  ? '대전 신청장 보내는 중…'
+                  : match
+                    ? '진행 중인 매칭으로 돌아가기'
+                    : !boss.eventId
+                      ? '다음 보스를 준비 중입니다'
+                      : !boss.canChallenge
+                        ? '지금은 대전을 신청할 수 없습니다'
+                        : '대전 신청장 보내기'}
+              </button>
+            )}
           </section>
         )}
 

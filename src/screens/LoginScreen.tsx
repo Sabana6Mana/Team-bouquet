@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useBackend } from '../context/BackendProvider'
 import { consumeNativeAuthError } from '../lib/nativeRuntime'
 import { isValidKoreanPhone } from '../lib/phone'
+import { DEMO_OTP, DEMO_SEND_DELAY_MS, delay, isDemoOtp, markDemoVerified } from '../lib/demoPhoneAuth'
 
 const RESEND_WAIT_SECONDS = 60
 
@@ -76,11 +77,15 @@ export default function LoginScreen() {
     }
 
     await run(async () => {
-      await backend.sendPhoneOtp(phone)
+      // 실제 문자는 보내지 않는다. 보내는 시늉만 하고 고정 인증번호로 통과시킨다.
+      await delay(DEMO_SEND_DELAY_MS)
       setSent(true)
       setToken('')
       setResendSeconds(RESEND_WAIT_SECONDS)
-      setFeedback({ tone: 'success', text: '인증번호를 보냈습니다. 문자 메시지를 확인해 주세요.' })
+      setFeedback({
+        tone: 'success',
+        text: `시연용 인증번호는 ${DEMO_OTP} 입니다. 그대로 입력해 주세요.`,
+      })
     })
   }
 
@@ -91,8 +96,14 @@ export default function LoginScreen() {
     }
 
     await run(async () => {
-      await backend.verifyPhoneOtp(phone, token)
-      setFeedback({ tone: 'success', text: '본인 인증이 완료되었습니다.' })
+      if (!isDemoOtp(token)) {
+        throw new Error(`인증번호가 올바르지 않습니다. 시연용 번호는 ${DEMO_OTP} 입니다.`)
+      }
+      // 인증은 흉내지만 세션은 진짜로 만들어야 이후 기능이 동작한다.
+      // 통과 표시를 세션보다 먼저 남겨야 phoneVerified 가 곧바로 켜진다.
+      markDemoVerified(phone)
+      await backend.signInAnonymously()
+      setFeedback({ tone: 'success', text: '확인되었습니다. 프로필을 만들어 주세요.' })
     })
   }
 

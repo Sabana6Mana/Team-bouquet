@@ -7,28 +7,30 @@ import PlayerAvatar from '../components/PlayerAvatar'
 import { MapProgressSummary } from '../components/gameplay/GameplayWidgets'
 import { activeMatchPath } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { HOME, HOT_VENUE_IDS, VENUES, leaderboardOf } from '../data/seed'
 import { QUICK_RADIUS_M, SPORTS, distanceMeters, tierOf } from '../lib/game'
 import { useApp } from '../store/useApp'
 import type { MatchMode, SportId } from '../types'
+import { useEquippedTitle } from '../lib/equippedTitle'
+import { useGameplay } from '../lib/useGameplay'
 
 const MAP_SPORTS: SportId[] = ['badminton', 'tennis', 'tabletennis', 'basketball']
 /** 위치 권한을 쓰지 않는 데모에서만 보여 주는 지도상의 출발점. */
 const DEMO_MAP_POSITION = { lat: 37.502105, lng: 127.0489 }
 
-/**
- * 매칭 이후 화면을 확인하기 위한 테스트 버튼을 보일지.
- * 개발 서버에서는 늘 보이고, 배포본에서는 주소에 ?test 를 붙였을 때만 나온다.
- * (심사용 데모 화면에 테스트 버튼이 남지 않게 한다.)
+/*
+ * "혼자 체험하기" 는 배포본에서도 보인다.
+ *
+ * 실제 매칭은 3km 안에 같은 종목을 고른 사람이 또 있어야 성사되고,
+ * 그 뒤로도 수락·시간 투표·팀 구성·참가 확정·결과 투표를 전원이 통과해야 한다.
+ * 처음 앱을 켠 사람이 혼자라면 대기열에서 멈춰, 만들어 둔 화면을 하나도 보지 못한다.
+ *
+ * 그래서 NPC 가 전 과정을 대신 진행하는 체험 경로를 열어 둔다.
+ * 실제 매칭 기능은 그대로 두므로, 두 사람이 가까이 있으면 진짜 매칭이 된다.
  */
-function testToolsEnabled() {
-  if (import.meta.env.DEV) return true
-  if (typeof window === 'undefined') return false
-  return new URLSearchParams(window.location.search).has('test')
-}
 
 export default function MapScreen() {
+  const equippedTitle = useEquippedTitle()
   const me = useApp((state) => state.me)
   const history = useApp((state) => state.history)
   const coords = useApp((state) => state.coords)
@@ -43,9 +45,7 @@ export default function MapScreen() {
   const nav = useNavigate()
   const [searchParams] = useSearchParams()
   const backend = useBackend()
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
 
   useEffect(() => {
     const requestedVenue = searchParams.get('venue')
@@ -173,7 +173,7 @@ export default function MapScreen() {
               </span>
               <span className="player-summary__identity">
                 <strong>{me.nickname}</strong>
-                {me.title && <small className="player-summary__title">《{me.title}》</small>}
+                {equippedTitle && <small className="player-summary__title">《{equippedTitle}》</small>}
                 <span className="mono" style={{ color: playerTier.color }}>
                   {playerTier.name} {me.elo[primarySport]}
                 </span>
@@ -238,21 +238,26 @@ export default function MapScreen() {
         </>
       )}
 
-      {testToolsEnabled() && (
+      {!match && (
         <>
           <button
-            className={`map-test-button${testOpen ? ' is-open' : ''}`}
+            className={`map-demo-button${testOpen ? ' is-open' : ''}`}
             onClick={() => setTestOpen((open) => !open)}
             aria-expanded={testOpen}
           >
-            <span aria-hidden="true">🧪</span>
-            <span>테스트 매칭</span>
+            <span aria-hidden="true">🎮</span>
+            <span>혼자 체험하기</span>
           </button>
 
           {testOpen && (
             <>
-              <button className="map-menu-scrim" onClick={() => setTestOpen(false)} aria-label="테스트 메뉴 닫기" />
-              <div className="test-match-menu fade-in" role="menu" aria-label="테스트 매칭 종목">
+              <button className="map-menu-scrim" onClick={() => setTestOpen(false)} aria-label="체험 메뉴 닫기" />
+              <div className="test-match-menu fade-in" role="menu" aria-label="체험 매칭 종목">
+                <span className="label">혼자 체험하기</span>
+                <p className="demo-menu-note">
+                  상대를 기다리지 않고 <b>NPC와 함께</b> 매칭부터 결과까지
+                  전 과정을 바로 볼 수 있습니다.
+                </p>
                 <span className="label">종목 · 인원 선택</span>
                 {MAP_SPORTS.map((id) => {
                   const meta = SPORTS[id]

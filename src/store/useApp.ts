@@ -75,6 +75,17 @@ interface AppState {
   history: MatchRecord[]
   /** 데모 모드에서 장착한 칭호. 라이브 모드는 profiles.equipped_title_code가 원본이다. */
   equippedTitleCode: string | null
+  /**
+   * 체험 매칭으로 쌓은 경기 기록.
+   *
+   * 서버 모드에서는 BackendProvider 가 주기적으로 history 를 서버 값으로 덮어쓴다.
+   * 체험 기록을 거기 두면 다음 동기화에 지워져 도전과제가 영영 깨지지 않는다.
+   * 그래서 서버가 건드리지 않는 별도 목록에 남긴다.
+   */
+  demoHistory: MatchRecord[]
+  /** 체험 진행 상태에서 장착한 칭호. */
+  demoTitleCode: string | null
+  equipDemoTitle: (achievementCode: string | null) => void
   notifications: AppNotification[]
   /** 화면 위에 배너로 띄울 알림 */
   toast: AppNotification | null
@@ -142,6 +153,8 @@ export const useApp = create<AppState>()(
       match: null,
       history: [],
       equippedTitleCode: null,
+      demoHistory: [],
+      demoTitleCode: null,
       notifications: [],
       toast: null,
       clanId: null,
@@ -928,7 +941,12 @@ export const useApp = create<AppState>()(
           })
           return
         }
-        set({ history: [record, ...get().history], match: null })
+        set({
+          history: [record, ...get().history],
+          // 체험으로 얻은 기록. 서버 동기화에 지워지지 않는다.
+          demoHistory: forcedDemo.active ? [record, ...get().demoHistory] : get().demoHistory,
+          match: null,
+        })
         endForcedDemo(set)
       },
 
@@ -994,11 +1012,14 @@ export const useApp = create<AppState>()(
       },
       joinClan: (id) => set({ clanId: get().clanId === id ? null : id }),
 
+      equipDemoTitle: (achievementCode) => set({ demoTitleCode: achievementCode }),
+
       reset: () => {
         clearTimers()
         forcedDemo.disable()
         set({
           account: null, me: emptyMe(), match: null, history: [], equippedTitleCode: null,
+          demoHistory: [], demoTitleCode: null,
           notifications: [], toast: null, clanId: null, coords: HOME,
           backendSlotIds: {}, backendError: null, testMatch: false, honorSubmitting: false,
         })
@@ -1007,7 +1028,7 @@ export const useApp = create<AppState>()(
     {
       name: backendConfig.configured ? 'matchpoint-backend-v1' : 'matchpoint-v1',
       partialize: (s) => backendConfig.configured
-        ? { coords: s.coords }
+        ? { coords: s.coords, demoHistory: s.demoHistory, demoTitleCode: s.demoTitleCode }
         : {
             account: s.account, me: s.me, history: s.history, equippedTitleCode: s.equippedTitleCode,
             notifications: s.notifications, clanId: s.clanId,

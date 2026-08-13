@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { RARITY_META, localAchievementProgress } from '../data/achievements'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SeasonQuestPanel } from '../components/gameplay/GameplayWidgets'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
 import { useApp } from '../store/useApp'
+import { winStreakOf } from '../lib/game'
+import { useGameplay } from '../lib/useGameplay'
 
 type Filter = 'all' | 'unlocked' | 'locked'
 
@@ -17,16 +18,36 @@ export default function AchievementsScreen() {
   const history = useApp((state) => state.history)
   const equippedTitleCode = useApp((state) => state.equippedTitleCode)
   const equipLocalTitle = useApp((state) => state.equipLocalTitle)
+  const demoHistory = useApp((state) => state.demoHistory)
+  const demoTitleCode = useApp((state) => state.demoTitleCode)
+  const equipDemoTitle = useApp((state) => state.equipDemoTitle)
   const [filter, setFilter] = useState<Filter>('all')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const achievements = backend.enabled
-    ? backend.achievements
-    : localAchievementProgress(me, history, equippedTitleCode)
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  /*
+   * 체험 매칭으로 얻은 기록이 있으면 도전과제를 직접 계산한다.
+   *
+   * 체험 경기는 서버에 저장되지 않아 서버가 내려주는 도전과제에는 잡히지 않는다.
+   * 서버 기록과 체험 기록을 합쳐서 세면 두 경로가 모두 반영된다.
+   */
+  const hasDemoProgress = demoHistory.length > 0
+  const useLocalAchievements = !backend.enabled || hasDemoProgress
+  const combinedHistory = useMemo(
+    () => (hasDemoProgress ? [...demoHistory, ...history] : history),
+    [hasDemoProgress, demoHistory, history],
+  )
+  // 서버에서 온 me 에는 체험 연승이 없다. 합친 기록으로 다시 센다.
+  const localMe = useMemo(() => {
+    if (!hasDemoProgress) return me
+    const streak = winStreakOf({ ...me, isMe: true }, combinedHistory)
+    return { ...me, bestStreak: Math.max(me.bestStreak ?? 0, streak) }
+  }, [hasDemoProgress, me, combinedHistory])
+
+  const achievements = useLocalAchievements
+    ? localAchievementProgress(localMe, combinedHistory, hasDemoProgress ? demoTitleCode : equippedTitleCode)
+    : backend.achievements
+  const gameplay = useGameplay()
   const unlockedCount = achievements.filter((achievement) => achievement.unlockedAt).length
   const equipped = achievements.find((achievement) => achievement.equipped)
   const shown = useMemo(() => achievements.filter((achievement) => {
@@ -50,7 +71,9 @@ export default function AchievementsScreen() {
     setBusy(code ?? 'none')
     setError(null)
     try {
-      if (backend.enabled) await backend.equipTitle(code)
+      // 체험 진행 중에는 서버에 없는 도전과제라 로컬에만 장착한다.
+      if (hasDemoProgress) equipDemoTitle(code)
+      else if (backend.enabled) await backend.equipTitle(code)
       else equipLocalTitle(code)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '칭호를 장착하지 못했습니다.')
