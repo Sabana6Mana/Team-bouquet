@@ -42,6 +42,15 @@ enable_confirmations = true
 821055500000 = "123456"
 821055500001 = "654321"
 
+# The local Auth image only enables phone login when an SMS provider is
+# configured. These non-production placeholders are never contacted for the
+# reserved test numbers above because GoTrue resolves their fixed OTP first.
+[auth.sms.twilio]
+enabled = true
+account_sid = "AC00000000000000000000000000000000"
+message_service_sid = "MG00000000000000000000000000000000"
+auth_token = "local-test-only"
+
 [auth.email]
 enable_signup = true
 enable_confirmations = false
