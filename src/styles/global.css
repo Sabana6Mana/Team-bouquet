@@ -2421,15 +2421,15 @@ a { color: inherit; text-decoration: none; }
   background: linear-gradient(90deg, var(--court), var(--court-2));
   transition: width 0.45s cubic-bezier(0.2, 0.8, 0.3, 1), background 0.35s ease, box-shadow 0.35s ease;
 }
-/* 달아오른 상태 — 올라갈 때 */
+/* 승리 상태 — 파랗게 빛나며 올라간다 */
 .elobar.hot > i {
-  background: linear-gradient(90deg, #b02218, #ff7a5c);
-  box-shadow: 0 0 14px rgba(224, 69, 58, 0.85);
-}
-/* 식은 상태 — 떨어지기 직전 */
-.elobar.cold > i {
   background: linear-gradient(90deg, #1e4f9c, #6aa6ee);
   box-shadow: 0 0 14px rgba(47, 111, 208, 0.8);
+}
+/* 패배 상태 — 붉게 경고하며 떨어진다 */
+.elobar.cold > i {
+  background: linear-gradient(90deg, #b02218, #ff7a5c);
+  box-shadow: 0 0 14px rgba(224, 69, 58, 0.85);
 }
 /* 파바박 — 끊어서 차오르므로 각 구간은 즉각 반영한다 */
 .elobar.burst > i { transition: width 0.07s linear; }
