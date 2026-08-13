@@ -14,6 +14,8 @@ import { useApp } from '../store/useApp'
 import type { MatchMode, SportId } from '../types'
 
 const MAP_SPORTS: SportId[] = ['badminton', 'tennis', 'tabletennis', 'basketball']
+/** 위치 권한을 쓰지 않는 데모에서만 보여 주는 지도상의 출발점. */
+const DEMO_MAP_POSITION = { lat: 37.502105, lng: 127.0489 }
 
 /**
  * 매칭 이후 화면을 확인하기 위한 테스트 버튼을 보일지.
@@ -98,9 +100,13 @@ export default function MapScreen() {
   const playerTier = tierOf(me.elo[primarySport])
   const quickMode = SPORTS[primarySport].modes[0]
 
-  // 경진대회 지도는 강남 거점을 먼저 보여준다. 실제 위치가 강남 생활권이면
-  // 그대로 쓰고, 멀리 있으면 데모 스폰 지점만 지도 연출에 사용한다.
-  const mapPosition = distanceMeters(coords, HOME) <= QUICK_RADIUS_M * 2 ? coords : HOME
+  // 초기 HOME 좌표는 위치 권한을 받기 전의 데모 기본값이라 인접 체육관과 겹친다.
+  // 실제 강남 생활권 좌표는 그대로 쓰고, 기본값/생활권 밖 좌표만 지도 연출용
+  // 출발점으로 옮긴다. 매칭 거리 계산에 사용하는 coords 자체는 바꾸지 않는다.
+  const hasDevicePosition = distanceMeters(coords, HOME) > 5
+  const mapPosition = hasDevicePosition && distanceMeters(coords, HOME) <= QUICK_RADIUS_M * 2
+    ? coords
+    : DEMO_MAP_POSITION
 
   const selectSport = (next: SportId | 'all') => {
     setSport(next)
