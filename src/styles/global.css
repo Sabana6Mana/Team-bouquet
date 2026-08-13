@@ -1271,6 +1271,19 @@ a { color: inherit; text-decoration: none; }
   padding: 11px;
   display: flex; flex-direction: column; gap: 10px;
 }
+/*
+ * 세로 flex 는 넘칠 때 자식을 먼저 줄인다. 그대로 두면 보스 카드가 붙은 체육관에서
+ * 순위표가 찌그러져 사라지고, 스크롤도 생기지 않는다. 줄어들지 않게 막아
+ * 넘치는 만큼 실제로 스크롤되게 한다.
+ */
+.gpopup-body > * { flex-shrink: 0; }
+
+/* 순위·최근 경기 목록. 길어지면 이 안에서만 스크롤한다. */
+.jumbo-list {
+  max-height: 168px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 /* 패널이 반투명하므로 안쪽 카드도 살짝 비치게 맞춘다 */
 .gpopup .card { background: rgba(255, 255, 255, 0.55); }
 .gpopup .chip { background: rgba(255, 255, 255, 0.6); }
