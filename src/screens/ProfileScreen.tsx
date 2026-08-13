@@ -206,7 +206,10 @@ export default function ProfileScreen() {
           <span className="label">계정 정보</span>
           {(backend.enabled
             ? [
-                ['로그인', backend.user?.is_anonymous ? '게스트 베타' : (backend.user?.email ?? '카카오 계정')],
+                ['로그인', backend.user?.phone ? '휴대폰 인증' : backend.user?.is_anonymous ? '게스트 베타' : (backend.user?.email ?? '소셜 계정')],
+                ...(backend.user?.phone
+                  ? [['휴대폰', backend.user.phone.replace(/(\+82)(\d{2})(\d{4})(\d{4})/, '0$2-****-$4')]]
+                  : []),
                 ['사용자 ID', backend.user?.id.slice(0, 8) ?? '-'],
               ]
             : [

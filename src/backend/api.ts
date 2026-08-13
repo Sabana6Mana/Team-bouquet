@@ -8,6 +8,7 @@ import { backendConfig, requireSupabase, supabase } from './client'
 import {
   NATIVE_AUTH_REDIRECT, isNativeApp, openNativeAuth,
 } from '../lib/nativeRuntime'
+import { normalizeKoreanPhone } from '../lib/phone'
 import type { Json, TableInsert, TableRow } from './database.types'
 import type { HonorType } from '../types'
 import {
@@ -315,6 +316,35 @@ export const authApi = {
       type: 'email',
     })
     if (error) fail('이메일 인증 실패', error)
+    return data
+  },
+
+  /** Requests an SMS OTP for a Korean 010 mobile number. */
+  async sendPhoneOtp(phone: string) {
+    const client = requireSupabase()
+    const normalizedPhone = normalizeKoreanPhone(phone)
+    const { data, error } = await client.auth.signInWithOtp({
+      phone: normalizedPhone,
+      options: { shouldCreateUser: true },
+    })
+    if (error) fail('휴대폰 인증번호 전송 실패', error)
+    return data
+  },
+
+  /** Verifies the SMS OTP and returns the authenticated Supabase session. */
+  async verifyPhoneOtp(phone: string, token: string) {
+    const client = requireSupabase()
+    const normalizedPhone = normalizeKoreanPhone(phone)
+    const normalizedToken = token.trim()
+    if (!/^\d{6}$/.test(normalizedToken)) {
+      throw new Error('인증번호 6자리를 입력해 주세요.')
+    }
+    const { data, error } = await client.auth.verifyOtp({
+      phone: normalizedPhone,
+      token: normalizedToken,
+      type: 'sms',
+    })
+    if (error) fail('휴대폰 인증 실패', error)
     return data
   },
 

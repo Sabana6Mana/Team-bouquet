@@ -53,7 +53,7 @@ function Guard({ children }: { children: React.ReactNode }) {
       )
     }
     const authRoute = loc.pathname === '/login' || loc.pathname === '/auth/callback'
-    if (!backend.user) {
+    if (!backend.user || !backend.phoneVerified) {
       return authRoute ? <>{children}</> : <Navigate to="/login" replace />
     }
     if (!backend.profileReady || !account) {

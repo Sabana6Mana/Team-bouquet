@@ -23,6 +23,8 @@ interface BackendRuntime {
   enabled: boolean
   /** 카카오 콘솔과 Supabase Provider 설정까지 끝났는지 나타내는 공개 플래그. */
   kakaoEnabled: boolean
+  /** 현재 세션이 SMS OTP로 전화번호 소유 확인을 마쳤는지. */
+  phoneVerified: boolean
   /**
    * 지금 매치를 서버가 굴리고 있는지.
    * 화면 확인용 테스트 매치 중에는 false 가 되어, 매칭 화면들이 NPC 데모 흐름을 그린다.
@@ -42,6 +44,8 @@ interface BackendRuntime {
   signInWithKakao: () => Promise<void>
   sendEmailOtp: (email: string) => Promise<void>
   verifyEmailOtp: (email: string, token: string) => Promise<void>
+  sendPhoneOtp: (phone: string) => Promise<void>
+  verifyPhoneOtp: (phone: string, token: string) => Promise<void>
   signOut: () => Promise<void>
   checkNickname: (nickname: string) => Promise<boolean>
   saveProfile: (nickname: string, interests: SportId[], avatarUrl?: string | null) => Promise<void>
@@ -633,6 +637,7 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const value = useMemo<BackendRuntime>(() => ({
     enabled: backendConfig.configured,
     kakaoEnabled: backendConfig.kakaoEnabled,
+    phoneVerified: Boolean(session?.user.phone && session.user.phone_confirmed_at),
     liveMatch: backendConfig.configured && !testMatch,
     ready,
     user: session?.user ?? null,
@@ -659,6 +664,16 @@ export function BackendProvider({ children }: { children: ReactNode }) {
     verifyEmailOtp: async (email, token) => {
       setError(null)
       const data = await authApi.verifyEmailOtp(email, token)
+      sessionUserId.current = data.session?.user.id ?? null
+      setSession(data.session)
+    },
+    sendPhoneOtp: async (phone) => {
+      setError(null)
+      await authApi.sendPhoneOtp(phone)
+    },
+    verifyPhoneOtp: async (phone, token) => {
+      setError(null)
+      const data = await authApi.verifyPhoneOtp(phone, token)
       sessionUserId.current = data.session?.user.id ?? null
       setSession(data.session)
     },
