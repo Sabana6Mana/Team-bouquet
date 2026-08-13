@@ -4,6 +4,7 @@ import type {
   GameplaySummary,
 } from '../../data/gameplay'
 import type { SportId } from '../../types'
+import PlayerAvatar from '../PlayerAvatar'
 
 function percent(value: number, total: number): number {
   if (total <= 0) return 0
@@ -163,7 +164,12 @@ export function VenueGameplayCard({
             </span>
           </div>
           <div className="row" style={{ gap: 9 }}>
-            <span aria-hidden="true" style={{ fontSize: 25 }}>{boss.opponent.avatar}</span>
+            <PlayerAvatar
+              avatarUrl={boss.opponent.avatarUrl}
+              fallback={boss.opponent.avatar}
+              style={{ width: 34, height: 34, flexShrink: 0 }}
+              aria-hidden="true"
+            />
             <div className="stack grow" style={{ gap: 2 }}>
               <strong style={{ fontSize: 12 }}>{boss.opponent.nickname}</strong>
               <span className="small" style={{ fontSize: 10 }}>
@@ -172,11 +178,11 @@ export function VenueGameplayCard({
             </div>
           </div>
           <p className="small" style={{ margin: 0, fontSize: 10 }}>
-            일반 매칭 결과는 보스전에 반영되지 않습니다. 보스에게 직접 도전해 이겨야 칭호가 열립니다.
+            이 도전으로 성사된 실제 1대1 경기에서 지정 보스를 이겨야 칭호가 열립니다.
           </p>
           {onChallengeBoss && (
             <button type="button" className="btn primary" style={{ height: 36, fontSize: 11.5 }} onClick={onChallengeBoss}>
-              {boss.defeated ? '보스전 결과 보기' : '셔틀콕 가디언에게 도전'}
+              {boss.defeated ? '보스전 결과 보기' : `${boss.opponent.nickname}에게 도전`}
             </button>
           )}
         </div>
@@ -347,7 +353,7 @@ export function WeeklyBossCard({
   if (!boss.venueId) {
     return (
       <section className="card row" style={{ gap: 12, padding: 16 }}>
-        <span aria-hidden="true" style={{ fontSize: 28 }}>👾</span>
+        <span aria-hidden="true" style={{ fontSize: 28 }}>🏸</span>
         <div className="stack grow" style={{ gap: 4 }}>
           <span className="label">BADMINTON BOSS</span>
           <strong>{boss.name}</strong>
@@ -383,7 +389,12 @@ export function WeeklyBossCard({
         className="row"
         style={{ gap: 11, padding: 11, borderRadius: 13, background: 'rgba(255,255,255,0.68)', border: '1px solid rgba(184,134,11,0.22)' }}
       >
-        <span aria-hidden="true" style={{ fontSize: 30 }}>{boss.opponent.avatar}</span>
+        <PlayerAvatar
+          avatarUrl={boss.opponent.avatarUrl}
+          fallback={boss.opponent.avatar}
+          style={{ width: 42, height: 42, flexShrink: 0 }}
+          aria-hidden="true"
+        />
         <div className="stack grow" style={{ gap: 2 }}>
           <strong style={{ fontSize: 13 }}>{boss.opponent.nickname}</strong>
           <span className="small" style={{ fontSize: 10.5 }}>배드민턴 1v1 · ELO {boss.opponent.rating}</span>
@@ -393,7 +404,7 @@ export function WeeklyBossCard({
         </span>
       </div>
       <span className="small" style={{ fontSize: 10, textAlign: 'center' }}>
-        일반 경기는 보스 진행도에 포함되지 않습니다. 직접 대결 승리 시 《{boss.rewardTitle}》 획득 · ELO 변동 없음
+        지정 보스와 실제 1대1 경기에서 승리하면 《{boss.rewardTitle}》 획득 · 일반 경기처럼 ELO 반영
       </span>
       {onChallenge && (
         <button type="button" className="btn primary" onClick={onChallenge}>

@@ -1,8 +1,8 @@
 import { NPCS, REGION } from '../data/seed'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { SPORT_LIST } from '../lib/game'
 import { useApp } from '../store/useApp'
 import { useBackend } from '../context/BackendProvider'
+import { useGameplay } from '../lib/useGameplay'
 
 /** 종목마다 다른 감탄 이모지 */
 const HYPE = ['🔥', '⚡', '💥', '🚀']
@@ -15,9 +15,7 @@ export default function RankTicker() {
   const me = useApp((s) => s.me)
   const history = useApp((s) => s.history)
   const backend = useBackend()
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
 
   const items = SPORT_LIST.map((s, i) => {
     const top = [...NPCS, me].sort((a, b) => b.elo[s.id] - a.elo[s.id])[0]

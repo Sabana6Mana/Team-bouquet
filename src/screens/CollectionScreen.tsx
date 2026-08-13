@@ -1,17 +1,15 @@
 import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { useApp } from '../store/useApp'
+import { useGameplay } from '../lib/useGameplay'
 
 export default function CollectionScreen() {
   const nav = useNavigate()
   const backend = useBackend()
   const me = useApp((state) => state.me)
   const history = useApp((state) => state.history)
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
   const { region, venues } = gameplay
 
   return (

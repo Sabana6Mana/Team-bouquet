@@ -5,24 +5,27 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import {
   authApi, backendApi, backendConfig,
-  type BackendMatchHistory, type CurrentMatch, type Notification,
+  type BackendMatchHistory, type BossMatchStartResult, type CurrentMatch, type Notification,
   type ProfileWithRatings, type QueueEntry, type VenueSlot,
 } from '../backend'
 import { encodeSlot } from '../lib/game'
 import { forcedDemo } from '../lib/forcedDemo'
 import { titleForAchievement } from '../data/achievements'
-import type { BossChallengeResult, GameplayOutcome, GameplaySummary } from '../data/gameplay'
+import type { GameplayOutcome, GameplaySummary } from '../data/gameplay'
 import { isAvatarImageUrl } from '../data/characters'
 import { useApp } from '../store/useApp'
 import type {
   AchievementProgress, Account, AppNotification, HonorCounts, Match, MatchPhase, MatchRecord, Player, SportId,
 } from '../types'
+import { clearDemoVerified, isDemoVerified } from '../lib/demoPhoneAuth'
 
 interface BackendRuntime {
   /** Supabase 가 설정돼 있는지. 로그인·프로필 흐름이 이 값을 본다. */
   enabled: boolean
   /** 카카오 콘솔과 Supabase Provider 설정까지 끝났는지 나타내는 공개 플래그. */
   kakaoEnabled: boolean
+  /** 현재 세션이 SMS OTP로 전화번호 소유 확인을 마쳤는지. */
+  phoneVerified: boolean
   /**
    * 지금 매치를 서버가 굴리고 있는지.
    * 화면 확인용 테스트 매치 중에는 false 가 되어, 매칭 화면들이 NPC 데모 흐름을 그린다.
@@ -42,11 +45,12 @@ interface BackendRuntime {
   signInWithKakao: () => Promise<void>
   sendEmailOtp: (email: string) => Promise<void>
   verifyEmailOtp: (email: string, token: string) => Promise<void>
+  sendPhoneOtp: (phone: string) => Promise<void>
+  verifyPhoneOtp: (phone: string, token: string) => Promise<void>
   signOut: () => Promise<void>
   checkNickname: (nickname: string) => Promise<boolean>
   saveProfile: (nickname: string, interests: SportId[], avatarUrl?: string | null) => Promise<void>
-  startBossChallenge: (eventId: string) => Promise<BossChallengeResult>
-  resolveBossChallenge: (challengeId: string) => Promise<BossChallengeResult>
+  startBossMatch: (eventId: string) => Promise<BossMatchStartResult>
   equipTitle: (achievementCode: string | null) => Promise<void>
   refresh: () => Promise<void>
 }
@@ -229,6 +233,8 @@ function matchFromBackend(
       quick: snapshot.match.quick,
       venueName: snapshot.venue?.name,
       venuePricePerHour: snapshot.venue?.price_per_hour,
+      bossEventId: snapshot.match.boss_event_id ?? undefined,
+      bossPlayerId: snapshot.match.boss_profile_id ?? undefined,
       sport: snapshot.match.sport as SportId,
       mode: snapshot.match.mode as Match['mode'],
       capacity: snapshot.match.capacity,
@@ -319,6 +325,8 @@ function historyFromBackend(entries: BackendMatchHistory[], userId: string): Mat
       losers: members.filter((member) => member.team !== match.winner_team).map((member) => member.user_id),
       score: match.score ?? '-',
       eloDelta: mine?.rating_delta ?? 0,
+      bossEventId: match.boss_event_id ?? undefined,
+      bossPlayerId: match.boss_profile_id ?? undefined,
     }]
   })
 }
@@ -630,6 +638,10 @@ export function BackendProvider({ children }: { children: ReactNode }) {
   const value = useMemo<BackendRuntime>(() => ({
     enabled: backendConfig.configured,
     kakaoEnabled: backendConfig.kakaoEnabled,
+    // 실제 문자 인증을 붙이기 전까지는 시연용 통과 표시도 인정한다.
+    // (SMS 사업자를 연결하면 뒤쪽 조건만 지우면 된다)
+    phoneVerified: Boolean(session?.user.phone && session.user.phone_confirmed_at)
+      || (Boolean(session?.user) && isDemoVerified()),
     liveMatch: backendConfig.configured && !testMatch,
     ready,
     user: session?.user ?? null,
@@ -659,7 +671,18 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       sessionUserId.current = data.session?.user.id ?? null
       setSession(data.session)
     },
+    sendPhoneOtp: async (phone) => {
+      setError(null)
+      await authApi.sendPhoneOtp(phone)
+    },
+    verifyPhoneOtp: async (phone, token) => {
+      setError(null)
+      const data = await authApi.verifyPhoneOtp(phone, token)
+      sessionUserId.current = data.session?.user.id ?? null
+      setSession(data.session)
+    },
     signOut: async () => {
+      clearDemoVerified()
       await authApi.signOut()
       sessionUserId.current = null
       setSession(null)
@@ -676,21 +699,10 @@ export function BackendProvider({ children }: { children: ReactNode }) {
       await backendApi.profile.upsert({ nickname, interests, avatarUrl })
       await refresh()
     },
-    startBossChallenge: async (eventId) => {
+    startBossMatch: async (eventId) => {
       setError(null)
       try {
-        const result = await backendApi.gameplay.startBossChallenge(eventId)
-        await refresh()
-        return result
-      } catch (caught) {
-        setError(messageOf(caught))
-        throw caught
-      }
-    },
-    resolveBossChallenge: async (challengeId) => {
-      setError(null)
-      try {
-        const result = await backendApi.gameplay.resolveBossChallenge(challengeId)
+        const result = await backendApi.gameplay.startBossMatch(eventId)
         await refresh()
         return result
       } catch (caught) {

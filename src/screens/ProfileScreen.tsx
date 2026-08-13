@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../store/useApp'
 import { CLANS, VENUES } from '../data/seed'
-import { localGameplaySummary, unavailableGameplaySummary } from '../data/gameplay'
 import { HONOR_GRADES, HONOR_TYPES, SPORT_LIST, SPORTS, honorOf, tierOf } from '../lib/game'
 import { TopBar } from '../components/ui'
 import PlayerAvatar from '../components/PlayerAvatar'
 import { useBackend } from '../context/BackendProvider'
+import { useEquippedTitle } from '../lib/equippedTitle'
+import { useGameplay } from '../lib/useGameplay'
 
 const HONOR_SHORT_LABEL = {
   manner: '매너',
@@ -15,6 +16,7 @@ const HONOR_SHORT_LABEL = {
 } as const
 
 export default function ProfileScreen() {
+  const equippedTitle = useEquippedTitle()
   const nav = useNavigate()
   const me = useApp((s) => s.me)
   const account = useApp((s) => s.account)
@@ -29,9 +31,7 @@ export default function ProfileScreen() {
   const bestTier = tierOf(me.elo[best.id])
   const total = me.wins + me.losses
   const winRate = total ? Math.round((me.wins / total) * 100) : 0
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const gameplay = useGameplay()
 
   return (
     <div className="overlay">
@@ -47,7 +47,7 @@ export default function ProfileScreen() {
             <PlayerAvatar player={me} className="avatar lg" style={{ borderColor: `${bestTier.color}66`, overflow: 'hidden' }} />
             <div className="stack grow" style={{ gap: 6 }}>
               <strong style={{ fontSize: 20 }}>{me.nickname}</strong>
-              {me.title && <span className="profile-title">《{me.title}》</span>}
+              {equippedTitle && <span className="profile-title">《{equippedTitle}》</span>}
               <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                 <span className="chip" style={{ color: bestTier.color, borderColor: `${bestTier.color}55`, background: `${bestTier.color}16` }}>
                   {bestTier.name}
@@ -90,7 +90,7 @@ export default function ProfileScreen() {
             <strong style={{ fontSize: 13 }}>시즌 · 칭호</strong>
             <span className="small">
               {gameplay.season.completed}/{gameplay.season.total} 완료
-              {me.title ? ` · 《${me.title}》` : ''}
+              {equippedTitle ? ` · 《${equippedTitle}》` : ''}
             </span>
           </button>
         </div>
@@ -206,7 +206,10 @@ export default function ProfileScreen() {
           <span className="label">계정 정보</span>
           {(backend.enabled
             ? [
-                ['로그인', backend.user?.is_anonymous ? '게스트 베타' : (backend.user?.email ?? '카카오 계정')],
+                ['로그인', backend.user?.phone ? '휴대폰 인증' : backend.user?.is_anonymous ? '게스트 베타' : (backend.user?.email ?? '소셜 계정')],
+                ...(backend.user?.phone
+                  ? [['휴대폰', backend.user.phone.replace(/(\+82)(\d{2})(\d{4})(\d{4})/, '0$2-****-$4')]]
+                  : []),
                 ['사용자 ID', backend.user?.id.slice(0, 8) ?? '-'],
               ]
             : [

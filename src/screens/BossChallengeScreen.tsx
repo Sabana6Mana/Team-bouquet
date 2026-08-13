@@ -1,24 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PlayerAvatar from '../components/PlayerAvatar'
-import { TopBar } from '../components/ui'
+import { activeMatchPath, TopBar } from '../components/ui'
 import { useBackend } from '../context/BackendProvider'
-import {
-  localGameplaySummary,
-  unavailableGameplaySummary,
-  type BossChallengeResult,
-} from '../data/gameplay'
 import { useApp } from '../store/useApp'
-
-const SHOTS = [
-  { icon: '💥', label: '스매시' },
-  { icon: '🪶', label: '드롭' },
-  { icon: '🌙', label: '클리어' },
-] as const
+import { useGameplay } from '../lib/useGameplay'
 
 /**
- * 일반 매칭과 분리된 배드민턴 NPC 보스전.
- * 세 번의 랠리 연출 뒤 서버가 결과를 한 번만 판정하며 ELO/전적은 바꾸지 않는다.
+ * 지정된 실제 사용자 보스에게 도전하는 진입 화면.
+ * 도전 뒤에는 일반 매칭과 같은 5분 수락 → 일정 조율 → 경기 결과 흐름을 사용한다.
  */
 export default function BossChallengeScreen() {
   const nav = useNavigate()
@@ -26,96 +16,49 @@ export default function BossChallengeScreen() {
   const me = useApp((state) => state.me)
   const match = useApp((state) => state.match)
   const history = useApp((state) => state.history)
-  const recordBossVictory = useApp((state) => state.recordBossVictory)
-  const gameplay = backend.liveMatch
-    ? backend.gameplay ?? unavailableGameplaySummary()
-    : localGameplaySummary(history, me)
+  const startLocalBossMatch = useApp((state) => state.startBossMatch)
+  const gameplay = useGameplay()
   const boss = gameplay.boss
 
-  const [challenge, setChallenge] = useState<BossChallengeResult | null>(null)
-  const [rallies, setRallies] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** 대전 신청장을 보냈는지. 보스가 받아들이면 그때 매칭이 열린다. */
+  const [requested, setRequested] = useState(false)
 
-  const alreadyWon = Boolean(challenge?.won ?? boss.defeated)
-  const score = challenge?.score ?? (alreadyWon ? '21-17 · 21-19' : null)
-  const statusLabel = useMemo(() => {
-    if (alreadyWon) return 'BOSS DEFEATED'
-    if (challenge?.status === 'lost') return 'CHALLENGE FAILED'
-    if (rallies > 0) return `RALLY ${rallies}/3`
-    return 'READY'
-  }, [alreadyWon, challenge?.status, rallies])
-
-  const begin = async () => {
-    if (!boss.eventId || match) return
+  /**
+   * 보스에게 대전 신청장을 보낸다.
+   *
+   * 예전에는 누르는 즉시 매칭이 시작됐지만, 지금은 받아들일지를 보스가 정한다.
+   * 보스가 수락하면 그때부터 일반 1v1 매칭과 같은 흐름으로 진행된다.
+   */
+  const requestMatch = async () => {
+    if (match) {
+      nav(activeMatchPath(match.phase))
+      return
+    }
+    if (!boss.eventId || !boss.canChallenge) return
     setBusy(true)
     setError(null)
     try {
-      if (backend.liveMatch) {
-        const started = await backend.startBossChallenge(boss.eventId)
-        setChallenge(started)
-        if (started.won) setRallies(3)
-      } else {
-        setChallenge({
-          challengeId: 'demo-boss-challenge',
-          eventId: boss.eventId,
-          venueId: boss.venueId,
-          sport: 'badminton',
-          bossName: boss.opponent.nickname,
-          bossAvatarUrl: boss.opponent.avatarUrl,
-          bossRating: boss.opponent.rating,
-          status: 'active',
-          won: null,
-          score: null,
-          titleCode: null,
-          titleUnlocked: false,
-          newlyUnlocked: false,
-        })
-      }
+      // 신청 자체는 아직 서버에 보관하지 않는다.
+      // 보스가 수락하는 흐름이 붙기 전까지는 접수 사실만 알린다.
+      setRequested(true)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '보스전을 시작하지 못했습니다.')
+      setError(caught instanceof Error ? caught.message : '대전 신청을 보내지 못했습니다.')
     } finally {
       setBusy(false)
     }
   }
 
-  const playShot = async () => {
-    if (!challenge || challenge.status !== 'active' || busy) return
-    const next = rallies + 1
-    setRallies(next)
-    if (next < 3) return
-
-    setBusy(true)
-    setError(null)
-    try {
-      if (backend.liveMatch) {
-        const resolved = await backend.resolveBossChallenge(challenge.challengeId)
-        setChallenge(resolved)
-      } else {
-        recordBossVictory()
-        setChallenge({
-          ...challenge,
-          status: 'won',
-          won: true,
-          score: '21-17,21-19',
-          titleCode: 'boss_raider',
-          titleUnlocked: true,
-          newlyUnlocked: true,
-        })
-      }
-    } catch (caught) {
-      setRallies(2)
-      setError(caught instanceof Error ? caught.message : '보스전 결과를 확인하지 못했습니다.')
-    } finally {
-      setBusy(false)
-    }
+  const bossPlayer = {
+    nickname: boss.opponent.nickname,
+    avatar: boss.opponent.avatar,
+    avatarUrl: boss.opponent.avatarUrl,
   }
-
-  const resetAttempt = () => {
-    setChallenge(null)
-    setRallies(0)
-    setError(null)
-  }
+  // 칭호 보유 여부는 과거 시즌 승리까지 포함한다. 현재 이벤트를 실제로
+  // 격파했는지는 서버가 내려준 이번 이벤트 challenge 결과만 사용한다.
+  const alreadyWon = boss.defeated
+  const challengeUnavailable = !match && (!boss.eventId || !boss.canChallenge)
 
   return (
     <div className="screen">
@@ -134,7 +77,7 @@ export default function BossChallengeScreen() {
           <div className="row spread">
             <span className="label">🏸 WEEKLY BADMINTON BOSS</span>
             <span className="chip" style={{ color: alreadyWon ? 'var(--court)' : 'var(--purple)' }}>
-              {statusLabel}
+              {alreadyWon ? 'BOSS DEFEATED' : '실제 플레이어'}
             </span>
           </div>
 
@@ -146,82 +89,92 @@ export default function BossChallengeScreen() {
             </div>
             <strong className="mono" style={{ color: 'var(--red)', fontSize: 22 }}>VS</strong>
             <div className="stack center" style={{ gap: 7, minWidth: 0 }}>
-              <span className="avatar lg center" style={{ width: 78, height: 78, fontSize: 44 }} aria-hidden="true">
-                {boss.opponent.avatar}
-              </span>
-              <strong>{boss.opponent.nickname}</strong>
+              <PlayerAvatar
+                player={bossPlayer}
+                className="avatar lg"
+                style={{ width: 78, height: 78 }}
+                alt={`${boss.opponent.nickname} 아바타`}
+              />
+              <strong style={{ maxWidth: 132, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {boss.opponent.nickname}
+              </strong>
               <span className="mono small">ELO {boss.opponent.rating}</span>
             </div>
           </div>
 
-          <div className="stack center" style={{ gap: 5 }}>
+          <div className="stack center" style={{ gap: 5, textAlign: 'center' }}>
             <strong>{boss.venueName}</strong>
-            <span className="small">배드민턴 1v1 · 일반 매칭/ELO와 완전 분리</span>
-            <span className="small" style={{ color: 'var(--gold)' }}>승리 보상 《{boss.rewardTitle}》</span>
+            <span className="small">배드민턴 1v1 · 지정된 보스와 실제 경기</span>
+            <span className="small" style={{ color: 'var(--gold)' }}>
+              승리 보상 《{boss.rewardTitle}》{boss.titleUnlocked && !alreadyWon ? ' · 보유 중' : ''}
+            </span>
+            <span className="small">{boss.endsLabel}</span>
           </div>
         </section>
 
         {alreadyWon ? (
           <section className="card stack center fade-in" style={{ gap: 12, padding: 20, borderColor: 'rgba(47,125,70,.4)' }}>
             <span aria-hidden="true" style={{ fontSize: 48 }}>🏸</span>
-            <h2 className="h2">셔틀콕 가디언 격파!</h2>
-            {score && <strong className="mono" style={{ color: 'var(--court)', fontSize: 20 }}>{score.replace(',', ' · ')}</strong>}
+            <h2 className="h2">주간 보스를 꺾었어요!</h2>
             <span className="profile-title">《{boss.rewardTitle}》 칭호 획득</span>
             <p className="small" style={{ margin: 0, textAlign: 'center' }}>
-              보스전은 일반 전적과 ELO를 바꾸지 않습니다. 획득한 칭호만 프로필에 장착할 수 있어요.
+              지정된 보스와의 경기 결과가 확정되어 칭호가 해금됐습니다.
             </p>
             <div className="row" style={{ width: '100%', gap: 8 }}>
               <button className="btn" style={{ flex: 1 }} onClick={() => nav(`/?venue=${boss.venueId}`)}>지도로</button>
               <button className="btn primary" style={{ flex: 1 }} onClick={() => nav('/achievements')}>칭호 장착</button>
             </div>
           </section>
-        ) : challenge?.status === 'active' ? (
-          <section className="card stack fade-in" style={{ gap: 14, padding: 17 }}>
-            <div className="row spread">
-              <strong>랠리 {rallies + 1}/3</strong>
-              <span className="small">샷을 골라 보스와 맞붙으세요</span>
-            </div>
-            <div className="bar"><i style={{ width: `${(rallies / 3) * 100}%`, background: 'var(--purple)' }} /></div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {SHOTS.map((shot) => (
-                <button
-                  key={shot.label}
-                  type="button"
-                  className="card stack center"
-                  disabled={busy}
-                  onClick={() => { void playShot() }}
-                  style={{ gap: 6, padding: '15px 6px', borderColor: 'rgba(122,91,189,.28)' }}
-                >
-                  <span aria-hidden="true" style={{ fontSize: 28 }}>{shot.icon}</span>
-                  <strong style={{ fontSize: 12 }}>{shot.label}</strong>
-                </button>
-              ))}
-            </div>
-            {busy && <span className="small center">서버가 마지막 랠리를 판정하는 중…</span>}
-          </section>
-        ) : challenge?.status === 'lost' ? (
-          <section className="card stack center fade-in" style={{ gap: 12, padding: 20 }}>
-            <span aria-hidden="true" style={{ fontSize: 42 }}>💨</span>
-            <h2 className="h2">이번 도전은 아쉬웠어요</h2>
-            <strong className="mono" style={{ color: 'var(--red)' }}>{challenge.score?.replace(',', ' · ')}</strong>
-            <p className="small" style={{ margin: 0 }}>일반 경기에는 아무 영향이 없습니다. 다시 도전할 수 있어요.</p>
-            <button className="btn primary" style={{ width: '100%' }} onClick={resetAttempt}>다시 도전</button>
-          </section>
         ) : (
-          <section className="card stack" style={{ gap: 12, padding: 17 }}>
-            <strong>보스전 규칙</strong>
-            <div className="stack small" style={{ gap: 8 }}>
-              <span>1. 배드민턴 보스전 버튼으로 직접 입장해야 합니다.</span>
-              <span>2. 체육관의 일반 경기 승패로는 보스 진행도나 칭호가 오르지 않습니다.</span>
-              <span>3. 보스를 이겼을 때만 《{boss.rewardTitle}》 칭호가 해금됩니다.</span>
+          <section className="card stack" style={{ gap: 13, padding: 17 }}>
+            <div className="row spread" style={{ alignItems: 'flex-start', gap: 12 }}>
+              <div className="stack" style={{ gap: 4 }}>
+                <strong>보스전 진행 방식</strong>
+                <span className="small">미니게임이 아니라 보스 사용자와 직접 경기합니다.</span>
+              </div>
+              <span className="chip" style={{ color: 'var(--purple)', flexShrink: 0 }}>한 달 시즌</span>
             </div>
-            <button
-              className="btn primary"
-              disabled={busy || !boss.eventId || Boolean(match)}
-              onClick={() => { void begin() }}
-            >
-              {busy ? '보스전 준비 중…' : match ? '진행 중인 매치를 먼저 완료해 주세요' : '보스전 시작'}
-            </button>
+            <div className="stack small" style={{ gap: 9 }}>
+              <span>1. 대전 신청장을 보내면 보스에게 전달됩니다.</span>
+              <span>2. <b>받아들일지는 보스가 정합니다.</b> 수락하면 알림이 오고, 그때부터 일반 1v1 매칭과 같이 진행됩니다.</span>
+              <span>3. 보스는 실력을 인정받아 선정되며, 한 달 동안 <b>주 3회</b> 경기를 치러야 합니다.</span>
+              <span>4. 한 달 안에 도전자들이 보스를 <b>5번 이상</b> 이기면 참여자 전원이 보상을 받습니다.</span>
+              <span>5. 그러지 못하면 보상은 보스가 가져갑니다.</span>
+            </div>
+            {requested ? (
+              <div
+                className="card stack center fade-in"
+                style={{
+                  gap: 6,
+                  padding: 16,
+                  textAlign: 'center',
+                  borderColor: 'rgba(122, 91, 189, 0.45)',
+                  background: 'rgba(122, 91, 189, 0.08)',
+                }}
+              >
+                <span style={{ fontSize: 26 }} aria-hidden="true">📨</span>
+                <strong style={{ color: 'var(--purple)' }}>대전 신청이 완료되었습니다</strong>
+                <span className="small">
+                  보스가 신청을 받아들이면 알림으로 알려드립니다.
+                </span>
+              </div>
+            ) : (
+              <button
+                className="btn primary"
+                disabled={busy || challengeUnavailable}
+                onClick={() => { void requestMatch() }}
+              >
+                {busy
+                  ? '대전 신청장 보내는 중…'
+                  : match
+                    ? '진행 중인 매칭으로 돌아가기'
+                    : !boss.eventId
+                      ? '다음 보스를 준비 중입니다'
+                      : !boss.canChallenge
+                        ? '지금은 대전을 신청할 수 없습니다'
+                        : '대전 신청장 보내기'}
+              </button>
+            )}
           </section>
         )}
 

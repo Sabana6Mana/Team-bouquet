@@ -12,6 +12,7 @@ import EloBar from '../components/EloBar'
 import { MatchGameplayRewards } from '../components/gameplay/GameplayWidgets'
 import { useBackend } from '../context/BackendProvider'
 import PlayerAvatar from '../components/PlayerAvatar'
+import AwardCeremony, { ceremonyPending } from '../components/AwardCeremony'
 
 const DEFAULT_SCORE: Record<'tennis' | 'badminton' | 'tabletennis' | 'basketball', string> = {
   tennis: '6-4',
@@ -37,10 +38,21 @@ export default function ResultScreen() {
   const [score, setScore] = useState(match ? DEFAULT_SCORE[match.sport] : '')
   /** ELO 연출이 끝나야 세부 내용을 펼친다 */
   const [revealed, setRevealed] = useState(false)
+  /**
+   * 시상식을 보여 주는 중인가.
+   * 승패가 확정되는 순간 한 번만 켜고, 끝나면 ELO 막대 연출로 넘긴다.
+   */
+  const [ceremony, setCeremony] = useState(false)
 
   useEffect(() => {
     if (!match) nav('/', { replace: true })
   }, [match])
+
+  // 결과가 확정되는 순간 시상식을 켠다(매치당 한 번).
+  useEffect(() => {
+    if (!match?.result || !match.id) return
+    if (ceremonyPending(match.id)) setCeremony(true)
+  }, [match?.id, match?.result?.winner])
 
   useEffect(() => {
     if (match && !score) setScore(DEFAULT_SCORE[match.sport])
@@ -276,7 +288,12 @@ export default function ResultScreen() {
     )
   }
 
-  /* ── 2단계: ELO 변동 + 경기 명예 ── */
+  /* ── 2단계: 시상식 ── */
+  if (ceremony) {
+    return <AwardCeremony match={match} meId={me.id} onDone={() => setCeremony(false)} />
+  }
+
+  /* ── 3단계: ELO 변동 + 경기 명예 ── */
   return (
     <div className="overlay">
       <TopBar title="경기 종료" />

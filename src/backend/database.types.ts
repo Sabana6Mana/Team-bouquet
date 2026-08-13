@@ -248,6 +248,9 @@ export type Database = {
           score: string | null
           finalized_at: string | null
           acceptance_deadline: string | null
+          boss_event_id: string | null
+          boss_challenger_id: string | null
+          boss_profile_id: string | null
           created_at: string
           updated_at: string
         }
@@ -265,6 +268,9 @@ export type Database = {
           score?: string | null
           finalized_at?: string | null
           acceptance_deadline?: string | null
+          boss_event_id?: string | null
+          boss_challenger_id?: string | null
+          boss_profile_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -276,6 +282,9 @@ export type Database = {
           score?: string | null
           finalized_at?: string | null
           acceptance_deadline?: string | null
+          boss_event_id?: string | null
+          boss_challenger_id?: string | null
+          boss_profile_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -523,6 +532,8 @@ export type Database = {
           id: string
           event_id: string
           profile_id: string
+          match_id: string | null
+          boss_profile_id: string | null
           status: 'active' | 'won' | 'lost' | 'abandoned'
           challenger_rating: number
           boss_rating: number
@@ -536,6 +547,8 @@ export type Database = {
           id?: string
           event_id: string
           profile_id: string
+          match_id?: string | null
+          boss_profile_id?: string | null
           status?: 'active' | 'won' | 'lost' | 'abandoned'
           challenger_rating: number
           boss_rating: number
@@ -546,9 +559,81 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          match_id?: string | null
+          boss_profile_id?: string | null
           status?: 'active' | 'won' | 'lost' | 'abandoned'
           score?: string | null
           resolved_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      venue_boss_events: {
+        Row: {
+          id: string
+          code: string
+          venue_id: string
+          season_id: string | null
+          starts_at: string
+          ends_at: string
+          max_hp: number
+          starting_damage: number
+          damage_per_match: number
+          champion_profile_id: string | null
+          champion_name: string | null
+          champion_points: number
+          settled_at: string | null
+          sport: SportCode
+          boss_name: string
+          boss_avatar_url: string | null
+          boss_rating: number
+          win_rate_bps: number
+          challenge_enabled: boolean
+          boss_profile_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          venue_id: string
+          season_id?: string | null
+          starts_at: string
+          ends_at: string
+          max_hp?: number
+          starting_damage?: number
+          damage_per_match?: number
+          champion_profile_id?: string | null
+          champion_name?: string | null
+          champion_points?: number
+          settled_at?: string | null
+          sport?: SportCode
+          boss_name?: string
+          boss_avatar_url?: string | null
+          boss_rating?: number
+          win_rate_bps?: number
+          challenge_enabled?: boolean
+          boss_profile_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          venue_id?: string
+          season_id?: string | null
+          starts_at?: string
+          ends_at?: string
+          max_hp?: number
+          starting_damage?: number
+          damage_per_match?: number
+          champion_profile_id?: string | null
+          champion_name?: string | null
+          champion_points?: number
+          settled_at?: string | null
+          boss_name?: string
+          boss_avatar_url?: string | null
+          boss_rating?: number
+          challenge_enabled?: boolean
+          boss_profile_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -747,15 +832,9 @@ export type Database = {
         }
         Returns: Json
       }
-      start_my_boss_challenge: {
+      create_my_boss_match: {
         Args: {
           p_event_id: string
-        }
-        Returns: Json
-      }
-      resolve_my_boss_challenge: {
-        Args: {
-          p_challenge_id: string
         }
         Returns: Json
       }

@@ -122,7 +122,7 @@ export default function Onboarding() {
               <h1 className="h1">플레이어 이름을<br />정해주세요</h1>
               <p className="body">
                 전광판과 리더보드에 표시되는 이름입니다.
-                {backend.enabled && <><br /><span style={{ color: 'var(--green)' }}>실명·생년월일·전화번호는 저장하지 않습니다.</span></>}
+                {backend.enabled && <><br /><span style={{ color: 'var(--green)' }}>전화번호는 인증에만 사용하며 공개 프로필에는 저장하지 않습니다.</span></>}
               </p>
             </div>
             <input

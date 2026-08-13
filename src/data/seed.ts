@@ -110,6 +110,24 @@ export const NPCS: Player[] = NICKS.map((nickname, i) => ({
   clanId: i % 3 === 0 ? 'c1' : i % 3 === 1 ? 'c2' : undefined,
 }))
 
+/** 로컬 데모에서 일반 배드민턴 1v1 상대가 되는 사람형 주간 보스. */
+export const DEMO_BOSS_EVENT_ID = 'demo-badminton-boss-v1'
+export const DEMO_BOSS_VENUE_ID = 'v1'
+export const DEMO_BOSS_PLAYER: Player = {
+  id: 'demo-boss-tiger-smash',
+  nickname: 'Tiger_Smash',
+  avatar: '🐯',
+  avatarUrl: '/characters/tiger-fighter.webp',
+  elo: { tennis: 1200, badminton: 1700, tabletennis: 1200, basketball: 1200 },
+  stickers: 48,
+  honorCounts: { manner: 15, skill: 19, punctual: 8, fun: 6 },
+  wins: 41,
+  losses: 9,
+  streak: 6,
+  bestStreak: 11,
+  title: '강남 셔틀콕 수호자',
+}
+
 export function npcById(id: string): Player | undefined {
   return NPCS.find((n) => n.id === id)
 }

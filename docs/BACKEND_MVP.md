@@ -55,7 +55,44 @@ npm run dev
 - Supabase Studio: <http://127.0.0.1:55323>
 - 종료: `npm run supabase:stop`
 
-## 카카오 로그인 설정
+## 휴대폰 SMS 인증 설정
+
+첫 화면의 기본 인증은 휴대폰 SMS OTP입니다. 프론트는 국내 `010` 번호를 Supabase가
+요구하는 E.164 형식(`+8210...`)으로 바꾸고, 발송된 6자리 코드를 검증합니다. 전화번호는
+Supabase Auth에만 보관하며 `public.profiles`에는 복제하지 않습니다.
+
+호스팅 프로젝트에서는 Supabase Dashboard의 **Authentication > Providers > Phone**에서
+Phone 로그인을 켜고 SMS 발송업체(Twilio, Twilio Verify, MessageBird, Vonage, TextLocal 중
+하나)를 연결해야 실제 문자가 전송됩니다. Account SID, Auth Token 같은 비밀값은 Dashboard
+또는 서버 환경변수에만 저장하고 `VITE_` 접두사를 붙이면 안 됩니다. 운영 전에는 SMS 비용
+보호를 위해 전송 제한과 CAPTCHA도 설정하세요.
+
+로컬 Supabase는 실제 문자를 보내지 않고 아래 고정 테스트 계정만 사용할 수 있습니다.
+
+```text
+사용자 A: 010-5550-0000 / 인증번호 123456
+사용자 B: 010-5550-0001 / 인증번호 654321
+```
+
+두 번호는 Chrome·Edge처럼 세션을 분리해 2인 매칭을 확인할 때 사용합니다.
+`supabase/config.toml`의 `[auth.sms.test_otp]`가 이 번호를 제한하므로 실제 번호나 운영
+환경에서는 고정 코드가 허용되지 않습니다. 설정 변경 후에는 로컬 Supabase를 다시 시작해야
+합니다.
+
+```bash
+npm run supabase:stop
+npm run supabase:start
+```
+
+인증 성공 후에는 `닉네임·캐릭터 선택 → 관심 종목 선택` 순서로 온보딩이 이어집니다.
+기존 카카오·게스트 계정과 휴대폰 계정은 자동 병합하지 않습니다. 경진대회 MVP에서는
+휴대폰 계정을 새 기본 계정으로 사용합니다.
+
+운영/대회용 호스팅 프로젝트에서는 인증 우회를 막기 위해 **Anonymous Sign-ins를 OFF**로
+두고, 사용하지 않는 카카오 Provider도 OFF로 두세요. 로컬 설정의 익명 로그인은 격리된
+백엔드 자동 검증 사용자를 만들기 위해서만 유지합니다.
+
+## 카카오 로그인 설정 (현재 UI에서는 사용하지 않음)
 
 카카오 로그인 버튼과 콜백 화면은 구현되어 있지만, 저장소에는 실제 OAuth 자격 정보를
 넣지 않습니다. 카카오디벨로퍼스에서 앱을 만든 뒤 **카카오 로그인 사용 설정을 ON**으로

@@ -93,8 +93,8 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     metric: 'highest_rating', target: 1400,
   },
   {
-    code: 'boss_raider', name: '셔틀콕 가디언 격파', icon: '🏸', rarity: 'epic',
-    description: '배드민턴 보스에게 직접 도전해 승리하세요.', rewardTitle: '보스의 천적',
+    code: 'boss_raider', name: '체육관 보스 격파', icon: '🏸', rarity: 'epic',
+    description: '지정된 배드민턴 보스 사용자와 실제 1대1 경기에서 승리하세요.', rewardTitle: '보스의 천적',
     metric: 'boss_victories', target: 1,
   },
 ]
@@ -112,6 +112,18 @@ export function achievementDefinition(code?: string | null): AchievementDefiniti
 
 export function titleForAchievement(code?: string | null): string | null {
   return achievementDefinition(code)?.rewardTitle ?? null
+}
+
+/** 지정 보스와 실제로 맞붙어 이긴 일반 배드민턴 1v1 경기만 센다. */
+export function bossVictoriesOf(history: MatchRecord[], playerId: string): number {
+  return history.filter((record) => {
+    const bossPlayerId = record.bossPlayerId
+    if (!record.bossEventId || !bossPlayerId) return false
+    return record.sport === 'badminton'
+      && record.mode === '1v1'
+      && record.winners.includes(playerId)
+      && Boolean(bossPlayerId && bossPlayerId !== playerId && record.losers.includes(bossPlayerId))
+  }).length
 }
 
 /** 데모 모드에서 확인 가능한 통계만 계산한다. 서버 전용 고급 통계는 0으로 둔다. */
@@ -137,7 +149,7 @@ export function localAchievementProgress(
     }, {}))),
     giant_killer_wins: 0,
     highest_rating: Math.max(...Object.values(me.elo)),
-    boss_victories: me.bossVictories ?? 0,
+    boss_victories: bossVictoriesOf(history, me.id),
   }
 
   return ACHIEVEMENTS.map((definition) => {
