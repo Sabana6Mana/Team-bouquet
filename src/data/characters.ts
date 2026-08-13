@@ -8,11 +8,44 @@
 export const CHARACTERS = [
   {
     id: 'dino',
-    label: '초록 공룡',
-    avatarUrl: '/map/player-dino.webp',
+    label: '운동 공룡',
+    avatarUrl: '/characters/dino-athlete.webp',
     fallback: '🦖',
   },
+  {
+    id: 'fox',
+    label: '러닝 여우',
+    avatarUrl: '/characters/fox-runner.webp',
+    fallback: '🦊',
+  },
+  {
+    id: 'frog',
+    label: '개구리 선수',
+    avatarUrl: '/characters/frog-runner.webp',
+    fallback: '🐸',
+  },
+  {
+    id: 'koala',
+    label: '코트 코알라',
+    avatarUrl: '/characters/koala-athlete.webp',
+    fallback: '🐨',
+  },
+  {
+    id: 'tiger',
+    label: '파이팅 호랑이',
+    avatarUrl: '/characters/tiger-fighter.webp',
+    fallback: '🐯',
+  },
+  {
+    id: 'bear',
+    label: '든든한 곰',
+    avatarUrl: '/characters/bear-runner.webp',
+    fallback: '🐻',
+  },
 ] as const
+
+/** 이미 가입한 사용자가 저장한 이전 기본 캐릭터 경로. */
+const LEGACY_AVATAR_URLS = new Set(['/map/player-dino.webp'])
 
 export type CharacterId = (typeof CHARACTERS)[number]['id']
 export type Character = (typeof CHARACTERS)[number]
@@ -30,5 +63,6 @@ export function characterById(id: string | null | undefined): Character {
 export function isAvatarImageUrl(value: string | null | undefined): boolean {
   if (!value) return false
   if (/^https?:\/\//i.test(value)) return true
-  return CHARACTERS.some((character) => character.avatarUrl === value)
+  return LEGACY_AVATAR_URLS.has(value)
+    || CHARACTERS.some((character) => character.avatarUrl === value)
 }
