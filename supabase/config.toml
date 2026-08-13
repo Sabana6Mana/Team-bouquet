@@ -28,7 +28,19 @@ additional_redirect_urls = [
   "com.teambouquet.matchpoint://auth/callback"
 ]
 enable_signup = true
+# Kept on locally because backend verifier scripts create isolated throwaway users.
+# Disable anonymous sign-ins in the hosted competition project.
 enable_anonymous_sign_ins = true
+
+[auth.sms]
+enable_signup = true
+enable_confirmations = true
+
+# Local SMS smoke test. No real text is sent for these reserved numbers.
+# Never use these fixed OTPs or numbers in hosted/production configuration.
+[auth.sms.test_otp]
+821055500000 = "123456"
+821055500001 = "654321"
 
 [auth.email]
 enable_signup = true
