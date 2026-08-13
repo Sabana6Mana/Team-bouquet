@@ -1,4 +1,5 @@
 import type { Clan, MatchRecord, Player, SportId, Venue } from '../types'
+import { CHARACTERS } from './characters'
 
 /** 경진대회 데모 기준 좌표 — 강남구 선릉·대치 생활권 */
 export const HOME = { lat: 37.5048, lng: 127.0489 }
@@ -81,8 +82,6 @@ export const VENUES: Venue[] = [
   },
 ]
 
-const AVATARS = ['🦊', '🐻', '🐯', '🦁', '🐼', '🐨', '🦅', '🐺', '🦉', '🐸', '🦈', '🐲']
-
 function makeElo(base: number): Record<SportId, number> {
   const j = () => base + Math.round((Math.random() - 0.5) * 180)
   return { tennis: j(), badminton: j(), tabletennis: j(), basketball: j() }
@@ -98,7 +97,9 @@ const NICKS = [
 export const NPCS: Player[] = NICKS.map((nickname, i) => ({
   id: `npc-${i}`,
   nickname,
-  avatar: AVATARS[i % AVATARS.length],
+  // 같은 NPC는 큐·팀·룸·결과 어디서든 같은 번들 캐릭터로 보인다.
+  avatar: CHARACTERS[i % CHARACTERS.length].fallback,
+  avatarUrl: CHARACTERS[i % CHARACTERS.length].avatarUrl,
   elo: makeElo(1500 + ((i * 137) % 600) - 200),
   stickers: (i * 7) % 62,
   wins: 12 + ((i * 5) % 40),
